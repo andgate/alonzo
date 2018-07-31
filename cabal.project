@@ -1,0 +1,3 @@
+packages: language-alonzo-analysis/
+          language-alonzo-evaluate/
+          language-alonzo-source/
