@@ -1,5 +1,4 @@
-# Hawk Compiler Toolchain
-[![Build Status](https://travis-ci.org/andgate/hawk.svg?branch=master)](https://travis-ci.org/andgate/hawk)
+# Alonzo Compiler Toolchain
 
 ## Building with Stack
 
