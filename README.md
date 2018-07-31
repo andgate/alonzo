@@ -1,34 +1,28 @@
 # Alonzo Compiler Toolchain
 
-## Building with Stack
+## Building and running
 
-Install stack and then initalize the project with
+Install cabal. Make sure pacakges are up to date.
 
 ```bash
-$ stack setup
-$ stack build
+$ cabal update
 ```
 
-Once you have a successful build, you can run the following commands.
+Build with cabal new-build
 
 ``` sh
 # Build the project.
-stack build
-
-# Run the test suite.
-stack test
-
-# Run the benchmarks.
-stack bench
-
-# Generate documentation. (windows may require -j1 for a successful build)
-stack haddock
-
-# All three at once, rebuilding when changes are saved
-stack build --test --bench --haddock --file-watch
+cabal new-build all
 ```
 
-## On Windows
+Run with cabal new-run
+
+```
+# Run alci
+cabal new-run alci
+```
+
+## Installing LLVM On Windows
 
 To build on windows, llvm must be built and installed manually. This process can take a very, very long time.
 
