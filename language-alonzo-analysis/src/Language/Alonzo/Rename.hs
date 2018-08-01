@@ -54,7 +54,9 @@ rename vs cs t = runRenamer (newREnv vs cs (locOf t)) $ renameTerm t
 runRenamer :: REnv -> Renamer a -> Either RenameError a
 runRenamer env rn = runExcept $ runReaderT (unRenamer rn) env
 
-
+renameFun :: [S.Fun] -> Renamer Module
+renameFun m = do
+  return undefined
 
 renameTerm :: S.Term -> Renamer Term
 renameTerm = \case

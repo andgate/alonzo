@@ -18,13 +18,15 @@ import Data.Typeable (Typeable)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text (Text, pack)
 import Data.Text.Prettyprint.Doc
+import Data.Map.Strict (Map)
 import Data.Maybe
 
 import Language.Alonzo.Syntax.Location as X
 import Language.Alonzo.Syntax.Name as X
 import Language.Alonzo.Syntax.Prim as X
 
-import qualified Data.List.NonEmpty             as NE
+import qualified Data.Map.Strict     as Map
+import qualified Data.List.NonEmpty  as NE
 
 
 -- -----------------------------------------------------------------------------
@@ -32,6 +34,7 @@ import qualified Data.List.NonEmpty             as NE
 
 data Decl
   = ModDecl  Text
+  | ImportDecl Text
   | TermDecl Term
   | FunDecl  Fun
   | DataDecl Data
@@ -42,7 +45,7 @@ data Decl
 -- | Definitions
 
 data Fun
-  = Fun Text [Text] Term
+  = Fun Text [Pat] Term
   deriving (Show, Generic, Typeable)
 
 -- -----------------------------------------------------------------------------
@@ -71,6 +74,9 @@ data Term
   -- let x = t in body
   | TLet   (NonEmpty PatBind) Term
   | TCase  Term (NonEmpty PatBind)
+
+  | TRec       Text [(Text, Term)]
+  | TRecUpdate Term [(Text, Term)]
   
   -- Location decorator
   | TLoc    Loc Term
@@ -84,9 +90,14 @@ data Term
 
 data Pat
   = PVar Text
-  | PWild
-  | PParen Pat
+  
+  | PAs Text Pat
+  | PCon Text [Pat]
+  | PRec Text [(Text, Pat)]
+  
   | PLoc Loc Pat
+  | PParen Pat
+  | PWild
   deriving (Show, Generic, Typeable)
 
 

@@ -7,6 +7,7 @@
   #-}
 module Language.Alonzo.Syntax.Bound where
 
+import Data.Map.Strict (Map)
 import Data.Text (Text, pack)
 import Data.Text.Prettyprint.Doc
 import Data.Typeable (Typeable)
@@ -18,9 +19,21 @@ import Language.Alonzo.Syntax.Prim
 import Language.Alonzo.Syntax.Location
 
 
+--------------------------------------------------------------------------------------------------
+-- Module Definition
 
 data Module =
-  Module (Bind (Rec [(Var, Embed Term)]) Term)
+  Module
+    { modName    :: String
+    , modImports :: [String]
+    , modDefs    :: (Bind (Rec [(Var, Embed Term)]) Term)
+    , modCons    :: Map String [String]
+    }
+  deriving(Show, Generic, Typeable)
+
+
+--------------------------------------------------------------------------------------------------
+-- Term Definition
 
 type Var = Name Term
 
