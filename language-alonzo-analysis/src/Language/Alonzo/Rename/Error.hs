@@ -5,15 +5,20 @@ module Language.Alonzo.Rename.Error where
 
 
 import Data.Text.Prettyprint.Doc
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import Language.Alonzo.Syntax.Location
 
 
 data RenameError
-  = UndeclaredName Loc Text
-    deriving(Show)
+  = UndeclaredConstr Loc String
+  | UnknownGlobals Loc [String]
+  | NameCollision Loc [String]
+  deriving(Show)
 
 instance Pretty RenameError where
     pretty = \case
-        UndeclaredName l n ->
-            "Unrecognizd Name:" <+> pretty n
+        UndeclaredConstr l n ->
+            pretty l <+> "Unrecognized Constructor:" <+> pretty n
+        
+        NameCollision l ns ->
+            pretty l <+> "Name Collisions:" <+> hsep (pretty <$> ns)
