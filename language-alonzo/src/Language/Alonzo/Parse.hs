@@ -14,6 +14,8 @@ import Prelude hiding (lex)
 import Control.Monad.Except
 import Data.Either (partitionEithers)
 import Data.Text (Text)
+import Data.Text.Prettyprint.Doc
+import Data.Text.Prettyprint.Doc.Render.Text
 import Text.Earley (Report (..), Prod)
 
 import Language.Alonzo.Lex (lex)
@@ -31,7 +33,8 @@ parseFile :: FilePath -> Text -> Either ParseError [Decl]
 parseFile fp srcTxt =
   runExcept $ do
     toks <- withExcept PLexErr $ lex fp srcTxt
-    mapM parse (lfCut $ organize toks)
+    let toks' = lfCut . organize $ toks
+    mapM parse toks'
 
 
 parseDecl :: FilePath -> Text -> Either ParseError Decl

@@ -145,12 +145,8 @@ repairBlock = do
 
 -- | Test if the cursor is within the current cell.
 cursorInCell :: Layout Bool
-cursorInCell = do
-  i <- cursorIndent
-  ln <- cursorIndent
-  cl <- peekCell
-  return $ inCell ln i cl
-
+cursorInCell =
+  inCell <$> cursorLine <*> cursorIndent <*> peekCell
 
 -- | Predicate for testing if a cursor is in the current cell.
 inCell :: Int  -- Line to test 
@@ -161,7 +157,7 @@ inCell ln i (Cell (P cln ci) ct) =
   case ct of
     Block    ->  ci <= i
     Frame    ->  ci <= i
-    LineFold ->  (ci < i) && (ln /= cln)
+    LineFold ->  ((ci < i) && (ln /= cln)) || ((ci <= i) && (ln == cln))
     
 
 

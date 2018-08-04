@@ -105,7 +105,10 @@ alonzoGrammar = mdo
     termLam <- rule $
       let ex (_,l1) vs body@(TLoc l2 _) =
             TLoc (l1<>l2) $ TLam (NE.fromList vs) body
-      in ex <$> rsvp "\\" <*> some varId' <*> (rsvp "." *> term)
+      in ex <$> lambda <*> some varId' <*> (rsvp "." *> term)
+
+    lambda <- rule $
+      rsvp "\\" <|> rsvp "λ"
 
     termLet <- rule $
       let ex (_, l1) bs body@(TLoc l2 _) = TLoc (l1<>l2) $ TLet (NE.fromList bs) body

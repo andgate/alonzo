@@ -22,8 +22,12 @@ import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
 import Language.Alonzo.Repl.Error
 import Language.Alonzo.Lex (lex)
+import Language.Alonzo.Lex.LFCut (lfCut)
+import Language.Alonzo.Lex.Organize (organize)
 import Language.Alonzo.Lex.Token (Token)
+import Language.Alonzo.Lex.Error
 import Language.Alonzo.Parse
+import Language.Alonzo.Parse.Error
 import Language.Alonzo.Rename (rename)
 import Language.Alonzo.Syntax.Module
 import Language.Alonzo.Transform.Eval (eval, Closure)
@@ -76,15 +80,14 @@ main :: IO ()
 main = runRepl (loadPrelude >> repl)
 
 repl :: Repl ()
-repl = untilM_ (read' >>= traverse execute >> liftIO (putStr "\n") ) (use replQuit)
+repl = untilM_ (
+  printDecoration >> liftIO T.getLine >>= parse' >>= traverse execute >> liftIO (putStr "\n") ) (use replQuit)
 
-read' :: Repl (Maybe S.Decl)
-read' = do
-  printDecoration
-  ln <- liftIO T.getLine
+parse' :: Text -> Repl (Maybe S.Decl)
+parse' src = do
   r <- bitraverse (\err -> liftIO ( putDoc (pretty err) >> T.putStr "\n"))
                   return
-                  (parseDecl "repl" ln)
+                  (parseDecl "repl" src)
   return $ eitherToMaybe r
 
 
@@ -130,8 +133,18 @@ rename' t = case rename [] t of
 
 loadPrelude :: Repl ()
 loadPrelude = do
-  preludeSrc <- liftIO $ T.readFile "prelude/Prelude.al"
-  -- Parse, load defs
+  let fp = "prelude/Prelude.al"
+  preludeSrc <- liftIO $ T.readFile fp
+
+  let mtoks = runExcept $ withExcept PLexErr $ lex fp preludeSrc
+  case mtoks of
+    Left err   -> liftIO (putDoc (pretty err) >> T.putStr "\n")
+    Right toks -> mapM_ (liftIO . putDoc . pretty) (organize $ toks)
+
+  ds <- bitraverse (\err -> liftIO ( putDoc (pretty err) >> T.putStr "\n"))
+                         return
+                         (parseFile fp preludeSrc)
+  traverse (mapM_ execute) ds
   return ()
 
 

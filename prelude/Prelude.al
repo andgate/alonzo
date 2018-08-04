@@ -1,6 +1,6 @@
 -- Category
-category = λid comp. 
-  λc. c id comp
+category = \id comp. 
+  (\c. c id comp)
 
 id      = λe. e (λid comp . id)
 compose = λe. e (λid comp . comp)

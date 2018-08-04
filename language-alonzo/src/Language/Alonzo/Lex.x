@@ -81,6 +81,7 @@ hawk :-
   \' .* \'                        { handleChar }
   
 
+  \λ                              { rsvp }
   \_                              { rsvp }
   \.                              { rsvp }
   \,                              { rsvp }
