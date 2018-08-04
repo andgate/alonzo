@@ -31,27 +31,13 @@ import qualified Data.Map.Strict     as Map
 import qualified Data.List.NonEmpty  as NE
 
 -- -----------------------------------------------------------------------------
--- | Top Level Declarations
-
-data TopLevelDecl
-  = ModuleDecl Text [Decl]
-  | ClassDecl Text [Text]
-  deriving (Show, Generic, Typeable)
-
+-- | Declarations
 
 data Decl
-  = ImportDecl Text
-  | TermDecl Term
-  | FunDecl  Fun
+  = TermDecl Term
+  | FunDecl  Text Term
   deriving (Show, Generic, Typeable)
 
-
--- -----------------------------------------------------------------------------
--- | Definitions
-
-data Fun
-  = Fun Text Term
-  deriving (Show, Generic, Typeable)
 
 -- -----------------------------------------------------------------------------
 -- | Term
@@ -75,7 +61,7 @@ data Term
   | TLam   (NonEmpty Text) Term
 
   -- let x = t in body
-  | TLet   (NonEmpty Fun) Term
+  | TLet   (NonEmpty (Text, Term)) Term
   
   -- Location decorator
   | TLoc    Loc Term
@@ -95,13 +81,8 @@ instance Locatable Term where
 
 instance Pretty Decl where
   pretty = \case
-    ImportDecl      n -> "import" <+> pretty n
-    TermDecl        x -> pretty x
-    FunDecl         x -> pretty x
-
-instance Pretty Fun where
-  pretty (Fun n body) =
-    pretty n <+> "=" <+> pretty body
+    TermDecl        t -> pretty t
+    FunDecl       n t -> pretty n <+> "=" <+> pretty t
 
 
 instance Pretty Term where

@@ -63,7 +63,7 @@ mkLayout input =
 
 -- | These tokens will trigger a block open on the next token.
 blkTriggers :: [TokenClass]
-blkTriggers = [TokenRsvp "do", TokenRsvp ":"]
+blkTriggers = [TokenRsvp "do"]
 
 -- | Tokens to open a frame 
 frameOpenTriggers :: [TokenClass]

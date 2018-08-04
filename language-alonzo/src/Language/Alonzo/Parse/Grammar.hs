@@ -4,7 +4,7 @@
            , FlexibleContexts
            , TupleSections
   #-}
-module Language.Alonzo.Parse.Decl where
+module Language.Alonzo.Parse.Grammar where
 
 import Control.Applicative hiding (optional)
 import Data.Bifunctor
@@ -25,8 +25,8 @@ import qualified Data.List.NonEmpty as NE
 
 -- -----------------------------------------------------------------------------
 -- Grammar for Alonzo
-declGrammar :: Grammar r (Prod r String Token Decl)
-declGrammar = mdo
+alonzoGrammar :: Grammar r (Prod r String Token Decl)
+alonzoGrammar = mdo
 
 -- -----------------------------------------------------------------------------
 -- Declaration Rules
@@ -34,28 +34,14 @@ declGrammar = mdo
     decl <- rule $ (linefold decl') <|> (decl' <* eof)
 
     decl' <- rule $
-        ( importDecl
-      <|> termDecl
+        ( termDecl
       <|> funDecl)
-      <?> "Declaration"
-
-    importDecl <- rule $
-      let ex (n, _) = ImportDecl n
-      in ex <$> (rsvp "import" *> conId)
 
     termDecl <- rule $
       (TermDecl <$> term)
 
     funDecl <- rule $
-      (FunDecl <$> fun) <?> "Function"
-
-
--- -----------------------------------------------------------------------------
--- Declaration Rules
-
-
-    fun <- rule $
-      let ex (n, _) body = Fun n body
+      let ex (n, _) body = FunDecl n body
       in ex <$> varId <*> (rsvp "=" *> term)
 
 
@@ -123,7 +109,11 @@ declGrammar = mdo
 
     termLet <- rule $
       let ex (_, l1) bs body@(TLoc l2 _) = TLoc (l1<>l2) $ TLet (NE.fromList bs) body
-      in ex <$> rsvp "let" <*> block fun <*> (rsvp "in" *> term)
+      in ex <$> rsvp "let" <*> block termLetBind <*> (rsvp "in" *> term)
+
+    termLetBind <- rule $ 
+      let ex (n, _) t = (n, t) 
+      in ex <$> varId <*> (rsvp "=" *> term)
 
     termParens <- rule $
       let ex (t, l) = TLoc l $ TParens t

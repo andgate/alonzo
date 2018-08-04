@@ -71,7 +71,7 @@ renameTerm = \case
     return $ tlam vs' body'
 
   S.TLet fns body ->
-    tlet <$> traverse renameFun (NE.toList fns) <*> renameTerm body
+    tlet <$> renameFuns (NE.toList fns) <*> renameTerm body
 
   S.TLoc l t   -> TLoc l <$> local (rnLoc .~ l) (renameTerm t)
   S.TParens t  -> renameTerm t
@@ -96,11 +96,11 @@ chkDups vs =
         l <- view rnLoc
         throwError $ NameCollision l ds
 
-renameFuns :: [S.Fun] -> Renamer [(String, Term)]
+renameFuns :: [(Text, S.Term)] -> Renamer [(String, Term)]
 renameFuns fns =
-  mapM renameFun fns 
+  traverse renameFun fns 
 
-renameFun :: S.Fun -> Renamer (String, Term)
-renameFun (S.Fun n t) = do
+renameFun :: (Text, S.Term) -> Renamer (String, Term)
+renameFun (n, t) = do
   t' <- renameTerm t
   return (unpack n, t')

@@ -16,6 +16,7 @@ import Data.Bifunctor
 import Data.Bitraversable
 import Data.Either
 import Data.Either.Extra (eitherToMaybe)
+import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
@@ -25,12 +26,12 @@ import Language.Alonzo.Lex.Token (Token)
 import Language.Alonzo.Parse
 import Language.Alonzo.Rename (rename)
 import Language.Alonzo.Syntax.Module
-import Language.Alonzo.Transform.Eval (eval)
+import Language.Alonzo.Transform.Eval (eval, Closure)
 import Language.Alonzo.Value
 import System.IO (hFlush, stdout)
 
 
-import qualified Language.Alonzo.Closure as CL
+import qualified Data.Map.Strict as Map
 import qualified Language.Alonzo.Syntax.Source as S
 import qualified Language.Alonzo.Syntax.Bound as B
 
@@ -41,7 +42,7 @@ data ReplState
   = ReplState
     { _replQuit :: Bool
     , _replMod :: Text
-    , _replPrj :: Project
+    , _replClosure :: Map Text B.Term
     , _replHistory :: [String]
     }
 
@@ -52,7 +53,7 @@ initialReplState =
   ReplState
     { _replQuit = False
     , _replMod = "repl"
-    , _replPrj = newProject "repl"
+    , _replClosure = Map.empty
     , _replHistory = []
     }
 
@@ -97,16 +98,21 @@ printDecoration = do
 
 execute :: S.Decl -> Repl ()
 execute = \case
-  S.TermDecl t -> frontend t >>= traverse eval' >> return ()
-  _ -> error "unsupported input"
+  S.TermDecl t -> do
+    t' <- frontend t
+    cl <- _replClosure <$> get
+    traverse (eval' cl) t'
+    return ()
+
+  S.FunDecl n t -> frontend t >>= traverse (saveDef n) >> return ()
 
 
 frontend :: S.Term -> Repl (Maybe B.Term)
 frontend = rename'
 
-eval' :: B.Term -> Repl B.Term
-eval' t = do
-  let r = eval CL.empty t
+eval' :: Closure -> B.Term -> Repl B.Term
+eval' cl t = do
+  let r = eval cl t
   liftIO $ do
     putDoc . pretty $ r
     putStr "\n"
@@ -127,3 +133,10 @@ loadPrelude = do
   preludeSrc <- liftIO $ T.readFile "prelude/Prelude.al"
   -- Parse, load defs
   return ()
+
+
+saveDef :: Text -> B.Term -> Repl ()
+saveDef n t = do
+  s <- get
+  let gs = Map.insert n t (_replClosure s)
+  put (s {_replClosure = gs})

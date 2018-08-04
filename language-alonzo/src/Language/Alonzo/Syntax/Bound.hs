@@ -131,7 +131,7 @@ prettyFresh = \case
     (xs, body) <- unbind bnd
     let xs' = (pretty . show) <$> xs 
     body' <- prettyFresh body
-    return $ "\\" <+> hcat xs' <+> "." <+> body'
+    return $ "\\" <> hsep xs' <> "." <+> body'
 
   TLet bnd -> undefined
 

@@ -49,8 +49,6 @@ library
   build-tools:
       alex ==3.2.4
   exposed-modules:
-      Language.Alonzo.Closure
-
       Language.Alonzo.Lex
       Language.Alonzo.Lex.Error
       Language.Alonzo.Lex.LFCut
@@ -60,9 +58,8 @@ library
       
       Language.Alonzo.Parse
       Language.Alonzo.Parse.Error
-      Language.Alonzo.Parse.Decl
+      Language.Alonzo.Parse.Grammar
       Language.Alonzo.Parse.Helpers
-      Language.Alonzo.Parse.TopLevel
 
       Language.Alonzo.Rename
       Language.Alonzo.Rename.Error
@@ -92,6 +89,7 @@ executable alci
   build-depends:
       base
     , bifunctors
+    , containers
     , extra
     , language-alonzo
     , lens

@@ -11,6 +11,39 @@ composeFn = λf g. λx. g (f x)
 
 fnCategory = category idFn composeFn
 
+
+-- Isomorphism
+isomorphism = \f g iso. iso f g
+
+to   = \e. e true
+from = \e. e false
+
+-- Isomorphism for functions
+
+fnIso = \f g. isomorpism f g
+
+-- Adjunction
+
+adjunction = \f u c l r adj. adj f u c l r
+adjunctionFunctor = \e. e (\f u c l r. f)
+
+unit         = \e. e (\f u c l r. u)
+counit       = \e. e (\f u c l r. c)
+leftAdjunct  = \e. e (\f u c l r. l)
+rightAdjunct = \e. e (\f u c l r. r)
+
+unitDef         = \a. leftAdjunct (id fnCategory) a
+counitDef       = \fa. rightAdjunct (id fnCategory) fa
+leftAdjunctDef  = \f a. fmap (adjunctionFunctor e) f (unit e a)
+rightAdjunctDef = \f fa. counit (fmap (adjunctionFunctor e) f fa)
+
+-- Adjuction between Pair and function
+
+funLeftAdj = \f. id fnCategory (f (id fnCategory x))
+funLeftAdj = \f. id fnCategory (f (id fnCategory x))
+
+functionAdjunction = adjunction functionFunctor (unitDef functionAdjunction) (counitDef functionAdjunction) funLeftAdj funRightAdj
+
 -- Monoid
 monoid = λempty append. pair empty append
 
@@ -40,7 +73,7 @@ liftM  = λe f m. bind e m (λx. return e (f x))
 true  = λt f. t
 false = λt f. f
 
-if = λc t f. c t f
+if = λc . \t f. c t f
 
 and = λx y. λt f. x (y t f) f
 or  = λx y. λt f. x t (y t f)

@@ -82,7 +82,6 @@ hawk :-
   
 
   \_                              { rsvp }
-  \|                              { rsvp }
   \.                              { rsvp }
   \,                              { rsvp }
   \(                              { rsvp }
@@ -91,42 +90,17 @@ hawk :-
   \]                              { rsvp }
   \{                              { rsvp }
   \}                              { rsvp }
-  \-\>                            { rsvp }
-  \=\>                            { rsvp }
-  \:\=                            { rsvp }
   \=                              { rsvp }
-  \<\-                            { rsvp }
-  \;                              { rsvp }
-  \:                              { rsvp }
   \\                              { rsvp }
-  \@                              { rsvp }
-
-  "Type"                          { rsvp }
-  "LType"                         { rsvp }
 
   "foreign"                       { rsvp }
-  "module"                        { rsvp }
-  "import"                        { rsvp }
-  "export"			                  { rsvp }
   "ccall"                         { rsvp }
   
   "infix"                         { rsvp }
   "infixl"                        { rsvp }
   "infixr"                        { rsvp }
 
-  "type"                          { rsvp }
-  "class"                         { rsvp }
-
   "do"                            { rsvp }
-  "has"                           { rsvp }
-
-  "forall"                        { rsvp }
-  "if"                            { rsvp }
-  "then"                          { rsvp }
-  "elif"                          { rsvp }
-  "else"                          { rsvp }
-  "case"                          { rsvp }
-  "of"                            { rsvp }
   
   @primid                         { \text -> yieldTokAt (TokenPrimId text) text }
   @conid                          { \text -> yieldTokAt (TokenConId text) text }

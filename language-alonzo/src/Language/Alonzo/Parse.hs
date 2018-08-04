@@ -21,7 +21,7 @@ import Language.Alonzo.Lex.LFCut
 import Language.Alonzo.Lex.Token
 import Language.Alonzo.Lex.Organize
 import Language.Alonzo.Parse.Error
-import Language.Alonzo.Parse.Decl
+import Language.Alonzo.Parse.Grammar
 import Language.Alonzo.Syntax.Source
 
 import qualified Text.Earley as E
@@ -43,7 +43,7 @@ parseDecl fp srcTxt =
 
 parse :: [Token] -> Except ParseError Decl
 parse toks = do
-  let (parses, r@(Report _ expected unconsumed)) = E.fullParses (E.parser declGrammar) toks
+  let (parses, r@(Report _ expected unconsumed)) = E.fullParses (E.parser alonzoGrammar) toks
   case parses of
     []  -> throwError $ UnexpectedToken unconsumed expected
     [p] -> return p

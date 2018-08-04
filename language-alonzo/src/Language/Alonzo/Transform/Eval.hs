@@ -6,16 +6,17 @@ module Language.Alonzo.Transform.Eval where
 
 
 import Control.Monad.Reader
+import Data.Map.Strict (Map)
 import Data.Text (Text, pack)
-import Language.Alonzo.Closure (Closure)
 import Language.Alonzo.Syntax.Bound
 import Language.Alonzo.Syntax.Prim
 import Language.Alonzo.Value
 import Unbound.Generics.LocallyNameless
 import Unbound.Generics.LocallyNameless.Internal.Fold (toListOf)
 
-import qualified Language.Alonzo.Closure as CL
+import qualified Data.Map.Strict as Map
 
+type Closure = Map Text Term
 
 eval :: Closure -> Term -> Term
 eval clos t = runEval clos (evalTerm t)
@@ -29,7 +30,11 @@ runEval clos (Eval m) = runFreshM $ runReaderT m clos
 
 evalTerm :: Term -> Eval Term
 evalTerm = \case
-  TVar v -> return $ TVar v -- substitute in from the closure?
+  TVar v -> do
+    mt <- Map.lookup (pack $ name2String v) <$> ask
+    case mt of
+      Nothing -> return $ TVar v
+      Just t -> evalTerm t
 
   TVal v -> return $ TVal v
   
