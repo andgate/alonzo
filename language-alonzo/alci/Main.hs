@@ -28,10 +28,10 @@ import Language.Alonzo.Lex.Token (Token)
 import Language.Alonzo.Lex.Error
 import Language.Alonzo.Parse
 import Language.Alonzo.Parse.Error
-import Language.Alonzo.Rename (rename)
+import Language.Alonzo.Transform.Rename (rename)
+import Language.Alonzo.Syntax.ANF (anf)
 import Language.Alonzo.Syntax.Module
 import Language.Alonzo.Transform.Eval (eval, Closure)
-import Language.Alonzo.Value
 import System.IO (hFlush, stdout)
 
 
@@ -135,11 +135,6 @@ loadPrelude :: Repl ()
 loadPrelude = do
   let fp = "prelude/Prelude.al"
   preludeSrc <- liftIO $ T.readFile fp
-
-  let mtoks = runExcept $ withExcept PLexErr $ lex fp preludeSrc
-  case mtoks of
-    Left err   -> liftIO (putDoc (pretty err) >> T.putStr "\n")
-    Right toks -> mapM_ (liftIO . putDoc . pretty) (organize $ toks)
 
   ds <- bitraverse (\err -> liftIO ( putDoc (pretty err) >> T.putStr "\n"))
                          return

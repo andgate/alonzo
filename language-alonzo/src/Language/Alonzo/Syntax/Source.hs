@@ -24,7 +24,6 @@ import Data.Map.Strict (Map)
 import Data.Maybe
 
 import Language.Alonzo.Syntax.Location as X
-import Language.Alonzo.Syntax.Name as X
 import Language.Alonzo.Syntax.Prim as X
 
 import qualified Data.Map.Strict     as Map

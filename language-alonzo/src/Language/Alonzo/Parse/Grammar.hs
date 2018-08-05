@@ -15,7 +15,6 @@ import Data.Text (Text, pack)
 import Language.Alonzo.Parse.Helpers
 import Language.Alonzo.Lex.Token (Token)
 import Language.Alonzo.Syntax.Source
-import Language.Alonzo.Syntax.Source.Helpers
 
 import Text.Earley
 import Text.Earley.Mixfix
@@ -53,6 +52,7 @@ alonzoGrammar = mdo
         <|> ( first VFloat <$> floatLit )
         <|> ( first VChar  <$> charLit )
         <|> ( first VBool  <$> boolLit )
+        <|> ( first VString  <$> strLit )
 
 
 -- -----------------------------------------------------------------------------

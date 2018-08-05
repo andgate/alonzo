@@ -5,6 +5,8 @@ category = \id comp.
 id      = λe. e (λid comp . id)
 compose = λe. e (λid comp . comp)
 
+const   = \a b . a
+
 -- Category for function
 idFn = λx. x
 composeFn = λf g. λx. g (f x)
@@ -103,14 +105,14 @@ just    = λx n j. j x
 maybe = λd f mb. mb d f
 isNothing = λmb. mb true (const false)
 isJust    = λmb. mb false (const true)
-fromJust  = λmb. mb (error "fromJust encountered Nothing") idFun
+fromJust  = λmb. mb (error "fromJust encountered Nothing") (idFn)
 
 -- Maybe functor
-mapMaybe = λf m. m id f
+mapMaybe = λf mb. mb nothing (\x. just (f x))
 maybeFunctor = mapMaybe
 
 -- Monad Evidence
-bindMaybe = λm f. m f nothing
+bindMaybe = λmb f. mb nothing f
 returnMaybe = just
 
 maybeMonad = tuple bindMaybe returnMaybe
@@ -124,5 +126,5 @@ tail = λl c n. l (λh t g. g h (t c)) (λt. n) (λh t. t)
 
 foldr = _
 
-listAppend = = \la lb . foldr cons lb la
+listAppend = \la lb . foldr cons lb la
 listMonoid = monoid nil listAppend

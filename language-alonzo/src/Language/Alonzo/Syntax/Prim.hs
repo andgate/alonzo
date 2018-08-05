@@ -34,6 +34,7 @@ data PrimVal
   | VFloat Double
   | VChar Char
   | VBool Bool
+  | VString String
   deriving (Read, Show, Eq, Ord, Data, Typeable, Generic)
 
 
@@ -100,8 +101,8 @@ instance Pretty PrimVal where
     
     VChar c ->
       squotes $ pretty c
-    
-    VBool v ->
+
+    VString v ->
       pretty v
 
 

@@ -49,6 +49,12 @@ library
   build-tools:
       alex ==3.2.4
   exposed-modules:
+      Language.Alonzo.Analysis.Error
+      Language.Alonzo.Analysis.Infer
+      Language.Alonzo.Analysis.NameCheck
+
+      Language.Alonzo.Eval
+
       Language.Alonzo.Lex
       Language.Alonzo.Lex.Error
       Language.Alonzo.Lex.LFCut
@@ -61,21 +67,16 @@ library
       Language.Alonzo.Parse.Grammar
       Language.Alonzo.Parse.Helpers
 
-      Language.Alonzo.Rename
-      Language.Alonzo.Rename.Error
       Language.Alonzo.Repl.Error
       
-      Language.Alonzo.Syntax.Bound
       Language.Alonzo.Syntax.Location
-      Language.Alonzo.Syntax.Module
-      Language.Alonzo.Syntax.Name
       Language.Alonzo.Syntax.Prim
       Language.Alonzo.Syntax.Source
-      Language.Alonzo.Syntax.Source.Helpers
 
-      Language.Alonzo.Transform.Eval
-
-      Language.Alonzo.Value
+      Language.Alonzo.Transform.ANorm
+      Language.Alonzo.Transform.Bound
+      Language.Alonzo.Transform.CConv
+      Language.Alonzo.Transform.Lifted
   
   other-modules:
   default-language: Haskell2010
