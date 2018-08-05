@@ -28,16 +28,15 @@ import Language.Alonzo.Lex.Token (Token)
 import Language.Alonzo.Lex.Error
 import Language.Alonzo.Parse
 import Language.Alonzo.Parse.Error
-import Language.Alonzo.Transform.Rename (rename)
-import Language.Alonzo.Syntax.ANF (anf)
-import Language.Alonzo.Syntax.Module
-import Language.Alonzo.Transform.Eval (eval, Closure)
+import Language.Alonzo.Transform.NameBind (namebind)
+import Language.Alonzo.Transform.ANorm (anf)
+import Language.Alonzo.Eval (eval, Closure)
 import System.IO (hFlush, stdout)
 
 
 import qualified Data.Map.Strict as Map
-import qualified Language.Alonzo.Syntax.Source as S
-import qualified Language.Alonzo.Syntax.Bound as B
+import qualified Language.Alonzo.Syntax.Source      as S
+import qualified Language.Alonzo.Transform.NameBind as B
 
 import qualified Data.Text.IO as T
 
@@ -102,16 +101,12 @@ printDecoration = do
 execute :: S.Decl -> Repl ()
 execute = \case
   S.TermDecl t -> do
-    t' <- frontend t
     cl <- _replClosure <$> get
-    traverse (eval' cl) t'
+    eval' cl (namebind t)
     return ()
 
-  S.FunDecl n t -> frontend t >>= traverse (saveDef n) >> return ()
+  S.FunDecl n t -> saveDef n (namebind t)
 
-
-frontend :: S.Term -> Repl (Maybe B.Term)
-frontend = rename'
 
 eval' :: Closure -> B.Term -> Repl B.Term
 eval' cl t = do
@@ -120,16 +115,6 @@ eval' cl t = do
     putDoc . pretty $ r
     putStr "\n"
   return r
-
-rename' :: S.Term -> Repl (Maybe B.Term)
-rename' t = case rename [] t of
-  Left err -> do 
-    liftIO . putDoc . pretty $ err
-    return Nothing
-
-  Right t' -> do
-    -- liftIO . putStr . show $ t'
-    return $ Just t'
 
 loadPrelude :: Repl ()
 loadPrelude = do

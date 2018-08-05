@@ -144,11 +144,15 @@ prettyFresh = \case
 
   TLam bnd -> do
     (xs, body) <- unbind bnd
-    let xs' = (pretty . show) <$> xs 
+    let xs' = (pretty . name2String) <$> xs 
     body' <- prettyFresh body
     return $ "\\" <> hsep xs' <> "." <+> body'
 
-  TLet bnd -> undefined
+  TLet bnd -> do
+    (brs, body) <- unbind bnd
+    brs' <- mapM (\(v, t) -> prettyFresh (unembed t) >>= \t' -> return (pretty (name2String v) <+> "=" <+> t')) (unrec brs)
+    body' <- prettyFresh body
+    return $ "let" <+> hsep brs' <+> "in" <+> body'
 
   TLoc _ t -> prettyFresh t
   TWild -> return "_"

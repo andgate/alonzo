@@ -1,8 +1,14 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE  DeriveDataTypeable
+            , DeriveGeneric
+            , LambdaCase 
+            #-}
 module Language.Alonzo.Transform.Lifted where
 
+import Data.Text
 import Data.Typeable (Typeable)
 import GHC.Generics
+import Language.Alonzo.Syntax.Location
+import Language.Alonzo.Syntax.Prim
 import Unbound.Generics.LocallyNameless
 import Unbound.Generics.LocallyNameless.Internal.Fold (Fold, toListOf)
 
@@ -10,7 +16,8 @@ import qualified Language.Alonzo.Transform.ANorm as A
 
 type Var = Name Term
 
-data Lambda = Lambda Text [Var] Term
+data Lambda = Lambda String (Bind [Var] Term)
+  deriving(Show, Generic, Typeable)
 
 data Term
   = TVal
