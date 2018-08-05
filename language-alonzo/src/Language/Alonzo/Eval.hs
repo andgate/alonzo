@@ -8,7 +8,7 @@ module Language.Alonzo.Eval where
 import Control.Monad.Reader
 import Data.Map.Strict (Map)
 import Data.Text (Text, pack)
-import Language.Alonzo.Transform.Bound
+import Language.Alonzo.Transform.NameBind
 import Language.Alonzo.Syntax.Prim
 import Unbound.Generics.LocallyNameless
 import Unbound.Generics.LocallyNameless.Internal.Fold (toListOf)

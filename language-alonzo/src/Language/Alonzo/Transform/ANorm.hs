@@ -6,8 +6,7 @@ import GHC.Generics
 import Unbound.Generics.LocallyNameless
 import Unbound.Generics.LocallyNameless.Internal.Fold (Fold, toListOf)
 
-import qualified Language.Alonzo.Syntax.Bound as B
-
+import qualified Language.Alonzo.Transform.NameBind as B
 
 type Var = Name Exp
 
@@ -32,7 +31,11 @@ anf = \case
   B.TVar v -> return . EVal . VVar $ v
   B.TVal v -> return . EVal . VVal $ v
   
-  B.TPrim v ->
+  B.TPrim i a b ->
+    (f', mfb) <- anfVal f
+    vs' <- mapM anfVal xs
+    
+    in ELet (bind vs (EPrim i a' b')
 
   B.TApp f xs -> do
     (f', mfb) <- anfVal f

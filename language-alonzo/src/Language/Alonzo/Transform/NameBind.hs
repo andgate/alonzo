@@ -1,22 +1,37 @@
 {-# Language DeriveDataTypeable
            , DeriveGeneric
+           , ExistentialQuantification
+           , GADTs
+           , GeneralizedNewtypeDeriving
+           , LambdaCase
            , MultiParamTypeClasses
            , OverloadedStrings
            , LambdaCase
            , RankNTypes
+           , ScopedTypeVariables
+           , TemplateHaskell
   #-}
-module Language.Alonzo.Transform.Bound where
+module Language.Alonzo.Transform.NameBind where
 
+import Control.Lens hiding (Fold, toListOf)
+import Control.Monad.Except
+import Control.Monad.Reader
+import Data.List.NonEmpty ( NonEmpty(..) )
 import Data.Map.Strict (Map)
-import Data.Text (Text, pack)
+import Data.Set (Set)
+import Data.Text (Text, pack, unpack)
 import Data.Text.Prettyprint.Doc
 import Data.Typeable (Typeable)
 import GHC.Generics
 import Unbound.Generics.LocallyNameless
 import Unbound.Generics.LocallyNameless.Internal.Fold (Fold, toListOf)
 
-import Language.Alonzo.Syntax.Prim
 import Language.Alonzo.Syntax.Location
+import Language.Alonzo.Syntax.Prim
+
+import qualified Data.List.NonEmpty             as NE
+import qualified Data.Set                       as Set
+import qualified Language.Alonzo.Syntax.Source  as S
 
 
 --------------------------------------------------------------------------------------------------
@@ -142,79 +157,33 @@ prettyFresh = \case
 ------------------------------------------------------------------------------------------------------
 -- Instances Required for unbound-generics
 
-data REnv = REnv
-  { _rnLoc     :: Loc
-  , _rnGlobals :: Set String
-  }
+namebind :: S.Term -> Term
+namebind = \case
 
-makeLenses  ''REnv
+  S.TVar n    -> tvar $ unpack n
 
-newREnv :: [String] -> Loc -> REnv
-newREnv vs l 
-  = REnv { _rnLoc = l
-         , _rnGlobals = Set.fromList vs
-         }
-
-newtype Renamer a = Renamer { unRenamer :: ReaderT REnv (Except RenameError) a }
-  deriving (Functor, Applicative, Monad, MonadReader REnv, MonadError RenameError)
-
-
-rename :: [String] -> S.Term -> Either RenameError Term
-rename vs t = runRenamer (newREnv vs (locOf t)) $ renameTerm t
-
-
-runRenamer :: REnv -> Renamer a -> Either RenameError a
-runRenamer env rn = runExcept $ runReaderT (unRenamer rn) env
-
-renameTerm :: S.Term -> Renamer Term
-renameTerm = \case
-
-  S.TVar n    -> return . tvar $ unpack n
-
-  S.TVal v    -> return $ TVal v
+  S.TVal v    -> TVal v
   
-  S.TPrim i t1 t2 -> TPrim i <$> renameTerm t1 <*> renameTerm t2
+  S.TPrim i t1 t2 -> TPrim i (namebind t1) (namebind t2)
 
   S.TApp f as -> 
-    tapps <$> renameTerm f <*> traverse renameTerm (NE.toList as)
+    tapps (namebind f) (namebind <$> NE.toList as)
 
-  S.TLam vs body -> do
+  S.TLam vs body ->
     let vs' = unpack <$> NE.toList vs
-    chkDups vs'
-    body' <- renameTerm body
-    return $ tlam vs' body'
+        body' = namebind body
+    in tlam vs' body'
 
   S.TLet fns body ->
-    tlet <$> renameFuns (NE.toList fns) <*> renameTerm body
+    tlet (renameFuns $ NE.toList fns) (namebind body)
 
-  S.TLoc l t   -> TLoc l <$> local (rnLoc .~ l) (renameTerm t)
-  S.TParens t  -> renameTerm t
-  S.TWild      -> return TWild
-
-
-getDups :: [String] -> [String]
-getDups vs = go vs Set.empty []
-  where
-    go :: [String] -> Set String -> [String] -> [String]
-    go [] _ ds = reverse ds
-    go (v:vs) xs ds 
-      | v `Set.member` xs = go vs xs (v:ds) 
-      | otherwise         = go vs (Set.insert v xs) ds
+  S.TLoc l t   -> TLoc l (namebind t)
+  S.TParens t  -> namebind t
+  S.TWild      -> TWild
 
 
-chkDups :: [String] -> Renamer ()
-chkDups vs =
-  case getDups vs of
-      [] -> return ()
-      ds -> do 
-        l <- view rnLoc
-        throwError $ NameCollision l ds
+renameFuns :: [(Text, S.Term)] -> [(String, Term)]
+renameFuns = map renameFun 
 
-renameFuns :: [(Text, S.Term)] -> Renamer [(String, Term)]
-renameFuns fns =
-  traverse renameFun fns 
-
-renameFun :: (Text, S.Term) -> Renamer (String, Term)
-renameFun (n, t) = do
-  t' <- renameTerm t
-  return (unpack n, t')
+renameFun :: (Text, S.Term) -> (String, Term)
+renameFun (n, t) = (unpack n, namebind t)
