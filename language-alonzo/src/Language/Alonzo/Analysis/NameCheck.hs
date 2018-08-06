@@ -16,6 +16,14 @@ data NameError
   = NameNotFound Loc Text
   | NameConflict Loc Text
 
+instance Pretty AnalysisError where
+    pretty = \case
+        UndeclaredConstr l n ->
+            pretty l <+> "Unrecognized Constructor:" <+> pretty n
+        
+        NameCollision l ns ->
+            pretty l <+> "Name Collisions:" <+> hsep (pretty <$> ns)
+
 namecheck :: Set Text -> Loc -> Term -> [NameError]
 namecheck vs l = \case
   TVar v -> 

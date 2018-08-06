@@ -1,15 +1,15 @@
 ## Todo List
 
-- Record syntax, constructor declarations, and binary operators instead of prim ops
+- Checks
+  - Add namecheck to REPL
 
-- Module system
-  - Imports, exports
-- Data Constructors
-  - Pattern matching
-- Function "overloading"
-  - Function shapes
-    - Determine arity for lambdas
-    - Functions can pattern match over all values
+- Transforms
+  - ANF (needs testing)
+  - Closure Convert
+  - Lambda Lift
+
+- Eval
+  - Add beta-reduction to each syntax file? At least anf..
 
 - Codegen
   - LLVM codegen
@@ -18,3 +18,5 @@
 
 - Tutorial
   - Write the tutorial!
+
+- Infer? Maybe use basic untyped inference to check arity?

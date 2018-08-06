@@ -7,18 +7,13 @@ module Language.Alonzo.Analysis.Error where
 import Data.Text.Prettyprint.Doc
 import Data.Text (Text, pack)
 import Language.Alonzo.Syntax.Location
+import Language.Alonzo.Analysis.NameCheck
 
 
 data AnalysisError
-  = UndeclaredConstr Loc String
-  | UnknownGlobals Loc [String]
-  | NameCollision Loc [String]
+  = ANameError NameError
   deriving(Show)
 
 instance Pretty AnalysisError where
     pretty = \case
-        UndeclaredConstr l n ->
-            pretty l <+> "Unrecognized Constructor:" <+> pretty n
-        
-        NameCollision l ns ->
-            pretty l <+> "Name Collisions:" <+> hsep (pretty <$> ns)
+      ANameError e -> pretty e 
