@@ -1,9 +1,11 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 module Language.Alonzo.Analysis.NameCheck where
 
 import Data.Foldable
 import Data.List
 import Data.Text (Text)
+import Data.Text.Prettyprint.Doc hiding (group)
+import Data.Text (Text, pack)
 import Data.Set (Set)
 import Language.Alonzo.Syntax.Location
 import Language.Alonzo.Syntax.Source
@@ -16,13 +18,13 @@ data NameError
   = NameNotFound Loc Text
   | NameConflict Loc Text
 
-instance Pretty AnalysisError where
+instance Pretty NameError where
     pretty = \case
-        UndeclaredConstr l n ->
-            pretty l <+> "Unrecognized Constructor:" <+> pretty n
+        NameNotFound l n ->
+            pretty l <+> "Name Not Found:" <+> pretty n
         
-        NameCollision l ns ->
-            pretty l <+> "Name Collisions:" <+> hsep (pretty <$> ns)
+        NameConflict l n ->
+            pretty l <+> "Name Conflict Detected:" <+> pretty n
 
 namecheck :: Set Text -> Loc -> Term -> [NameError]
 namecheck vs l = \case

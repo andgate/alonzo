@@ -5,86 +5,78 @@
 module Language.Alonzo.Eval where
 
 
-import Control.Monad.Reader
+import Control.Lens hiding (toListOf)
 import Data.Map.Strict (Map)
-import Data.Text (Text, pack)
-import Language.Alonzo.Transform.NameBind
+import Data.Text (Text, pack, unpack)
+import Data.Text.Prettyprint.Doc
+import Language.Alonzo.Transform.ANorm
 import Language.Alonzo.Syntax.Prim
 import Unbound.Generics.LocallyNameless
 import Unbound.Generics.LocallyNameless.Internal.Fold (toListOf)
 
 import qualified Data.Map.Strict as Map
 
-type Closure = Map Text Term
+type Closure = Map Text Exp
 
-eval :: Closure -> Term -> Term
-eval clos t = runEval clos (evalTerm t)
-
-newtype Eval a = Eval { unEval :: ReaderT Closure FreshM a } 
-  deriving (Functor, Applicative, Monad, MonadReader Closure, Fresh)
+reduce :: Closure -> Exp -> Val
+reduce cl = runFreshM . reduceExp cl
 
 
-runEval :: Closure -> Eval a -> a
-runEval clos (Eval m) = runFreshM $ runReaderT m clos
-
-evalTerm :: Term -> Eval Term
-evalTerm = \case
-  TVar v -> do
-    mt <- Map.lookup (pack $ name2String v) <$> ask
-    case mt of
-      Nothing -> return $ TVar v
-      Just t -> evalTerm t
-
-  TVal v -> return $ TVal v
+reduceExp :: Closure -> Exp -> FreshM Val
+reduceExp cl = \case
+  EVal v -> return v
   
-  TPrim i t1 t2 -> do
-    t1' <- evalTerm t1
-    t2' <- evalTerm t2
-    case (t1', t2') of
-      (TVal v1, TVal v2) ->
-           return . TVal $ evalInstr (i, v1, v2)
-      _ -> return $ TPrim i t1' t2'
+  EPrim i a b -> do
+    case (a, b) of
+      (VVal v1, VVal v2) ->
+           return . VVal $ evalInstr (i, v1, v2)
+      (VLoc _ a, b) -> reduceExp cl $ EPrim i a b
+      (a, VLoc _ b) -> reduceExp cl $ EPrim i a b
+      _ -> error "Primitive instruction encountered non-primitive values"
 
-  TApp f as -> do
-    f' <- evalTerm f
-    case f' of
-      TLam bnd -> do
+  EApp f []     -> return f
+  EApp f (a:as) ->
+    case f of
+      VLam bnd -> do
         (xs, body)   <- unbind bnd
-        (body', xs') <- apply body xs as 
-        case xs' of
-          []  -> return $ body'
-          _   -> return $ TLam (bind xs' body') 
-     
-      TApp g bs -> evalTerm $ TApp g (bs ++ as)
-      _         -> TApp f' <$> mapM evalTerm as
+        case xs of
+          []    -> reduceExp cl body
+          x:[]  -> do
+            f' <- reduceExp cl (subst x a body)
+            case as of
+              [] -> return f'
+              _  -> reduceExp cl $ EApp f' as
+              
+          x:xs' ->
+            let body' = subst x a body
+                f' = VLam $ bind xs' body'
+            in reduceExp cl $ EApp f' as
+
+      VVar v ->
+        case Map.lookup (pack $ name2String v) cl of
+          Nothing -> error $ "undeclared variable encountered: " ++ (name2String v)
+          Just t -> do
+            t' <- reduceExp cl t
+            reduceExp cl $ EApp t' (a:as)
+
+      VLoc _ f' -> reduceExp cl $ EApp f' (a:as)
+
+      _ -> error $ "Application head must be a lambda term: " ++ (show $ pretty $ EApp f (a:as))
 
 
-  TLam bnd -> do
-    (tele, body) <- unbind bnd
-    body' <- evalTerm body
-    return $ TLam (bind tele body')
-
-  TLet bnd -> do
+  ELet bnd -> do
     (r, body) <- unbind bnd
-    let vars = unrec r
-        -- Substitute all the terms into the body
-        body' = foldr (\(v, Embed rhs) body -> subst v rhs body) body vars
+    let bs = unrec r
+    bs' <- mapM (\(v, rhs) -> reduceExp cl (unembed rhs) >>= \rhs' -> return (v, rhs')) (unrec r)
+
+        -- Substitute all terms into the body
+    let body' = foldr (\(v, rhs) body' -> subst v rhs body') body bs'
         fvs = toListOf fv body'
-    if any (\(v,_) -> v `elem` fvs) vars
-      then evalTerm . TLet $ bind (rec vars) body'
-      else evalTerm body'
+    if any (\(v,_) -> v `elem` fvs) bs
+      then reduceExp cl . ELet $ bind r body'
+      else reduceExp cl body'
+
+  ELoc _ e   -> reduceExp cl e
 
 
-  TLoc l t   -> evalTerm t
-
-
-apply :: Term -> [Var] -> [Term] -> Eval (Term, [Var])
-apply t [] (_:_) =  error "Too many arguments"
-
-apply t (v:vs) (a:as) = do
-  a' <- evalTerm a
-  apply (subst v a' t) vs as
-
-apply t vs _ = do
-  t' <- evalTerm t
-  return (t', vs)
+-- ELet [("true", EVal (ELam ["t", "f"] (EVal $ VVar "t"))] (EApp (VVar "true") [VVal 1, VVal 0])

@@ -30,11 +30,9 @@ alonzoGrammar = mdo
 -- -----------------------------------------------------------------------------
 -- Declaration Rules
 
-    decl <- rule $ (linefold decl') <|> (decl' <* eof)
-
-    decl' <- rule $
-        ( termDecl
-      <|> funDecl)
+    decl <- rule $
+        ( funDecl
+      <|> termDecl) <* optional eof
 
     termDecl <- rule $
       (TermDecl <$> term)
@@ -62,13 +60,10 @@ alonzoGrammar = mdo
     term <- rule $
       cterm
 
-    term0 <- rule $ optional term
-
     cterm <- rule $
           termLam
+      <|> termLet
       <|> bterm
-
-    cterm0 <- rule $ optional cterm
 
     bterm <- rule $
       termApp <|> aterm
@@ -77,7 +72,6 @@ alonzoGrammar = mdo
           (termVar <?> "variable")
       <|> (termVal <?> "value")
       <|> (termPrim)
-      <|> (termLet <?> "let ... in ...")
       <|> (termWild <?> "_")
       <|> termParens
 
@@ -112,9 +106,12 @@ alonzoGrammar = mdo
 
     termLet <- rule $
       let ex (_, l1) bs body@(TLoc l2 _) = TLoc (l1<>l2) $ TLet (NE.fromList bs) body
-      in ex <$> rsvp "let" <*> block termLetBind <*> (rsvp "in" *> term)
+      in ex <$> rsvp "let" <*> letBinds <*> (rsvp "in" *> term)
 
-    termLetBind <- rule $ 
+    letBinds <- rule $
+      commaSep letBind
+
+    letBind <- rule $ 
       let ex (n, _) t = (n, t) 
       in ex <$> varId <*> (rsvp "=" *> term)
 

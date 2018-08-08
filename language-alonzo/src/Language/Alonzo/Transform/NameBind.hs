@@ -140,17 +140,17 @@ prettyFresh = \case
   TApp f as -> do
     f' <- prettyFresh f 
     as' <- mapM prettyFresh as
-    return $ f' <+> hcat as'
+    return $ f' <+> hsep as'
 
   TLam bnd -> do
     (xs, body) <- unbind bnd
-    let xs' = (pretty . name2String) <$> xs 
+    let xs' = (pretty . show) <$> xs 
     body' <- prettyFresh body
     return $ "\\" <> hsep xs' <> "." <+> body'
 
   TLet bnd -> do
     (brs, body) <- unbind bnd
-    brs' <- mapM (\(v, t) -> prettyFresh (unembed t) >>= \t' -> return (pretty (name2String v) <+> "=" <+> t')) (unrec brs)
+    brs' <- mapM (\(v, t) -> prettyFresh (unembed t) >>= \t' -> return (pretty (show v) <+> "=" <+> t')) (unrec brs)
     body' <- prettyFresh body
     return $ "let" <+> hsep brs' <+> "in" <+> body'
 
@@ -163,7 +163,6 @@ prettyFresh = \case
 
 namebind :: S.Term -> Term
 namebind = \case
-
   S.TVar n    -> tvar $ unpack n
 
   S.TVal v    -> TVal v

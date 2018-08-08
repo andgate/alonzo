@@ -32,10 +32,21 @@ import qualified Data.List.NonEmpty  as NE
 -- -----------------------------------------------------------------------------
 -- | Declarations
 
+type Closure = Map Text Term
+type Program = (Closure, Term)
+type Programs = (Closure, [Term])
+
 data Decl
   = TermDecl Term
   | FunDecl  Text Term
   deriving (Show, Generic, Typeable)
+
+
+programs :: [Decl] -> Programs
+programs = foldr go (Map.empty, [])
+  where go d (cl, ts) = case d of
+            TermDecl t -> (cl, t:ts)
+            FunDecl n t -> (Map.insert n t cl, ts)
 
 
 -- -----------------------------------------------------------------------------
@@ -92,15 +103,17 @@ instance Pretty Term where
       
       TPrim i t t' -> pretty (show i) <+> pretty t <+> pretty t'
       
-      TApp e1 e2  -> pretty e1 <+> hcat (pretty <$> NE.toList e2)
+      TApp e1 e2  -> pretty e1 <+> hsep (pretty <$> NE.toList e2)
       
-      TLam ps body -> "\\" <+> hcat (pretty <$> NE.toList ps) <+> "." <+> pretty body 
+      TLam ps body -> "\\" <+> hsep (pretty <$> NE.toList ps) <+> "." <+> pretty body 
 
-      TLet vs body -> "let" <+> nest 2 (vcat (pretty <$> NE.toList vs)) <+> pretty body
+      TLet bs body ->
+          "let" <+> hsep (punctuate comma [pretty x <+> "=" <+> pretty t | (x, t) <- NE.toList bs]) <+> "in" <+> pretty body
       
       TLoc _ t  -> pretty t -- ignore location
       TParens t -> parens $ pretty t
       TWild -> "_"
+
 
 
 {-

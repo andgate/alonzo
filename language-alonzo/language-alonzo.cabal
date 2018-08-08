@@ -49,6 +49,7 @@ library
   build-tools:
       alex ==3.2.4
   exposed-modules:
+      Language.Alonzo.Analysis
       Language.Alonzo.Analysis.Error
       Language.Alonzo.Analysis.Infer
       Language.Alonzo.Analysis.NameCheck
@@ -57,8 +58,7 @@ library
 
       Language.Alonzo.Lex
       Language.Alonzo.Lex.Error
-      Language.Alonzo.Lex.LFCut
-      Language.Alonzo.Lex.Organize
+      Language.Alonzo.Lex.Linefold
       Language.Alonzo.Lex.State
       Language.Alonzo.Lex.Token
       
@@ -71,6 +71,7 @@ library
       Language.Alonzo.Syntax.Prim
       Language.Alonzo.Syntax.Source
 
+      Language.Alonzo.Transform
       Language.Alonzo.Transform.ANorm
       Language.Alonzo.Transform.CConv
       Language.Alonzo.Transform.Lifted
@@ -96,6 +97,7 @@ executable alci
     , mtl
     , prettyprinter
     , text
+    , transformers
   
   other-modules:
     Language.Alonzo.Repl.Error

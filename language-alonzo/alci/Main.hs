@@ -7,36 +7,38 @@ module Main where
 
 import Prelude hiding (lex)
 
-import Control.Lens
+import Control.Lens hiding (transform)
 import Control.Monad
 import Control.Monad.State.Strict
 import Control.Monad.Except
 import Control.Monad.Loops (untilM_)
+import Control.Monad.Trans.Maybe
 import Data.Bifunctor
 import Data.Bitraversable
 import Data.Either
 import Data.Either.Extra (eitherToMaybe)
 import Data.Map.Strict (Map)
-import Data.Text (Text)
+import Data.Text (Text, pack, unpack)
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
+import Language.Alonzo.Analysis
+import Language.Alonzo.Analysis.NameCheck (namecheck, NameError(..))
+import Language.Alonzo.Analysis.Error
 import Language.Alonzo.Repl.Error
-import Language.Alonzo.Lex (lex)
-import Language.Alonzo.Lex.LFCut (lfCut)
-import Language.Alonzo.Lex.Organize (organize)
-import Language.Alonzo.Lex.Token (Token)
 import Language.Alonzo.Lex.Error
 import Language.Alonzo.Parse
 import Language.Alonzo.Parse.Error
-import Language.Alonzo.Transform.NameBind (namebind)
-import Language.Alonzo.Transform.ANorm (anf)
-import Language.Alonzo.Eval (eval, Closure)
+import Language.Alonzo.Syntax.Location
+import Language.Alonzo.Transform
+import Language.Alonzo.Eval (reduce, Closure)
 import System.IO (hFlush, stdout)
 
-
+import qualified Data.List as List
+import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
 import qualified Language.Alonzo.Syntax.Source      as S
 import qualified Language.Alonzo.Transform.NameBind as B
+import qualified Language.Alonzo.Transform.ANorm    as A
 
 import qualified Data.Text.IO as T
 
@@ -45,7 +47,7 @@ data ReplState
   = ReplState
     { _replQuit :: Bool
     , _replMod :: Text
-    , _replClosure :: Map Text B.Term
+    , _replClosure :: Map Text A.Exp
     , _replHistory :: [String]
     }
 
@@ -79,16 +81,7 @@ main :: IO ()
 main = runRepl (loadPrelude >> repl)
 
 repl :: Repl ()
-repl = untilM_ (
-  printDecoration >> liftIO T.getLine >>= parse' >>= traverse execute >> liftIO (putStr "\n") ) (use replQuit)
-
-parse' :: Text -> Repl (Maybe S.Decl)
-parse' src = do
-  r <- bitraverse (\err -> liftIO ( putDoc (pretty err) >> T.putStr "\n"))
-                  return
-                  (parseDecl "repl" src)
-  return $ eitherToMaybe r
-
+repl = untilM_ handleProcess (use replQuit)
 
 printDecoration :: Repl ()
 printDecoration = do
@@ -98,38 +91,159 @@ printDecoration = do
     T.putStr " > "
     hFlush stdout
 
-execute :: S.Decl -> Repl ()
-execute = \case
-  S.TermDecl t -> do
-    cl <- _replClosure <$> get
-    eval' cl (namebind t)
-    return ()
+handleProcess :: Repl ()
+handleProcess = catchError process handle
+  where handle = \case
+          ReplParseErr     -> return ()
+          ReplAnalysisErr  -> return ()
+          ReplSeriousErr e -> throwError $ ReplSeriousErr e
 
-  S.FunDecl n t -> saveDef n (namebind t)
+process :: Repl ()
+process = do
+  printDecoration
+  srctxt <- liftIO T.getLine
+  parse' srctxt >>= \t -> case t of 
+    S.TermDecl t  -> evalTerm t >>= printPretty
+    S.FunDecl n t -> saveDef n t
+  liftIO (putStr "\n")
+
+parse' :: Text -> Repl S.Decl
+parse' src = case parseDecl "repl" src of
+  Right t -> return t
+  Left e  -> do
+    printPretty e
+    throwError ReplParseErr
 
 
-eval' :: Closure -> B.Term -> Repl B.Term
-eval' cl t = do
-  let r = eval cl t
-  liftIO $ do
-    putDoc . pretty $ r
-    putStr "\n"
-  return r
+saveDef :: Text -> S.Term -> Repl ()
+saveDef n t = do
+  ns <- uses replClosure Map.keys
+  t' <- transform' =<< namecheck' (n:ns) t
+  replClosure %= Map.insert n t'
+
+
+evalTerm :: S.Term -> Repl A.Val
+evalTerm t = do
+  cl <- (Map.keys . _replClosure) <$> get
+  namecheck' cl t >>= transform' >>= reduce'
+  
+
+
+printPretty :: Pretty p => p -> Repl ()
+printPretty p =
+  liftIO $ putDoc (pretty p) >> putStr "\n"
+
+
+transform' :: S.Term -> Repl A.Exp
+transform' t = do 
+  liftIO $ putStr "Source:"
+  printPretty t
+  return $ transform t
+
+reduce' :: A.Exp -> Repl A.Val
+reduce' t = do
+  liftIO $ putStr "Anormalized:"
+  printPretty t
+  cl <- _replClosure <$> get
+  return $ reduce cl t
+  
+
+namecheck' :: [Text] -> S.Term -> Repl S.Term
+namecheck' ns t = case namecheck (Set.fromList ns) (S.locOf t) t of
+  [] -> return t
+  es -> do
+    let errMsg = vcat (pretty <$> es) 
+    liftIO $ putDoc errMsg >> T.putStr "\n"
+    throwError ReplAnalysisErr
+
 
 loadPrelude :: Repl ()
-loadPrelude = do
-  let fp = "prelude/Prelude.al"
-  preludeSrc <- liftIO $ T.readFile fp
+loadPrelude = loadFile "prelude/Prelude.al"
 
-  ds <- bitraverse (\err -> liftIO ( putDoc (pretty err) >> T.putStr "\n"))
-                         return
-                         (parseFile fp preludeSrc)
-  traverse (mapM_ execute) ds
+loadFile :: FilePath -> Repl ()
+loadFile fp = (loadFile' fp) `catchError` handle
+  where
+    handle (ReplSeriousErr msg) = error (unpack msg)
+    handle e = liftIO . putDoc . pretty $ e
+
+loadFile' :: FilePath -> Repl ()
+loadFile' fp = do
+  src <- liftIO $ T.readFile fp
+  case parseFile fp src of
+    Left e   -> fileParseFail fp e
+    Right ds -> do
+      buildFile fp ds
+      liftIO $ putStr ("Loaded: " ++ fp ++ "\n")
+
+buildFile :: FilePath -> [S.Decl] -> Repl ()
+buildFile fp ds = do
+  let ps@(cl, ts) = S.programs ds
+  -- checkPrograms fp ps
+  installPrograms cl
+  runPrograms ts
+
+
+checkPrograms :: FilePath -> S.Programs -> Repl ()
+checkPrograms fp ps@(cl, ts) = do
+  detectClosureConflict fp cl
+  replCl <- use replClosure
+  let ns = Map.keys replCl ++ Map.keys cl
   return ()
 
 
-saveDef :: Text -> B.Term -> Repl ()
-saveDef n t = do
-  s <- get
-  let gs = Map.insert n t (_replClosure s)
-  put (s {_replClosure = gs})
+installPrograms :: S.Closure -> Repl ()
+installPrograms cl = do
+  let ts = Map.elems cl
+  ts' <- mapM transform' ts
+
+  let ns = Map.keys cl
+      cl' = Map.fromList (zip ns ts')
+  replClosure %= Map.union cl'
+
+  mapM_ (installed . unpack) ns
+  
+  
+
+
+runPrograms :: [S.Term] -> Repl ()
+runPrograms ts = return ()
+
+
+
+detectClosureConflict :: FilePath -> S.Closure -> Repl ()
+detectClosureConflict fp cl = do
+  nsRepl <- Map.keys <$> use replClosure
+  case Map.keys cl `List.intersect` nsRepl of
+    [] -> return ()
+    ns -> closureConflict fp ns -- print error, throw exception
+
+
+
+nameErrors :: FilePath -> [NameError] -> Repl ()
+nameErrors fp es = do
+  liftIO $ do
+    putDoc $ vsep (pretty <$> es)
+    putStr "\n"
+  throwError $ ReplFileLoadErr fp
+
+
+closureConflict :: FilePath -> [Text] -> Repl ()
+closureConflict fp ns = do
+  liftIO $ do
+    T.putStr "Conflicting names detected:\n"
+    putDoc $ hsep (pretty <$> ns)
+    putStr "\n"
+  throwError $ ReplFileLoadErr fp
+
+
+fileParseFail :: FilePath -> ParseError -> Repl ()
+fileParseFail fp e =
+  liftIO $ do
+    putDoc (pretty e)
+    putStr fp
+    T.putStr "\nFailed to load "
+    putStr (fp ++ "\n")
+
+
+installed :: String -> Repl ()
+installed n = liftIO $ putStr ("Installed: " ++ n ++ "\n")

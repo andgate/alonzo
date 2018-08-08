@@ -1,3 +1,14 @@
+-- "types"
+int = \i f. f i
+bool = \p f. f p
+string = \s f. f s
+char = \c f. f c
+array = \a f. f a
+
+-- In general, we can embed terms
+embed = \a f . f a
+
+
 -- Category
 category = \id comp. 
   (\c. c id comp)
@@ -75,7 +86,7 @@ liftM  = λe f m. bind e m (λx. return e (f x))
 true  = λt f. t
 false = λt f. f
 
-if = λc . \t f. c t f
+if = λc. \t f. c t f
 
 and = λx y. λt f. x (y t f) f
 or  = λx y. λt f. x t (y t f)

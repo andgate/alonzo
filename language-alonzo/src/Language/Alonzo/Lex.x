@@ -23,7 +23,6 @@ import Data.Monoid
 import Data.Text (Text)
 import Data.Word (Word8)
 import Language.Alonzo.Lex.Error
-import Language.Alonzo.Lex.Organize (organize)
 import Language.Alonzo.Lex.State
 import Language.Alonzo.Lex.Token
 import Language.Alonzo.Syntax.Location
@@ -101,7 +100,8 @@ hawk :-
   "infixl"                        { rsvp }
   "infixr"                        { rsvp }
 
-  "do"                            { rsvp }
+  "let"                           { rsvp }
+  "in"                            { rsvp }
   
   @primid                         { \text -> yieldTokAt (TokenPrimId text) text }
   @conid                          { \text -> yieldTokAt (TokenConId text) text }

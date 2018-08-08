@@ -2,11 +2,13 @@
            , DeriveGeneric
            , LambdaCase
            , MultiParamTypeClasses
+           , OverloadedStrings
            #-}
 module Language.Alonzo.Transform.ANorm where
 
 import Data.Maybe
 import Data.Typeable (Typeable)
+import Data.Text.Prettyprint.Doc
 import GHC.Generics
 import Language.Alonzo.Syntax.Location
 import Language.Alonzo.Syntax.Prim
@@ -15,19 +17,19 @@ import Unbound.Generics.LocallyNameless.Internal.Fold (Fold, toListOf)
 
 import qualified Language.Alonzo.Transform.NameBind as B
 
-type Var = Name Exp
+type Var = Name Val
 
 data Exp
   = EVal Val
-  | EApp Val [Val]
   | EPrim PrimInstr Val Val
+  | EApp Val [Val]
   | ELet (Bind (Rec [(Var, Embed Exp)]) Exp)
   | ELoc Loc Exp
   deriving(Show, Generic, Typeable)
 
 data Val
-  = VLam (Bind [Var] Exp)
-  | VVar Var
+  = VVar Var
+  | VLam (Bind [Var] Exp)
   | VVal PrimVal
   | VLoc Loc Val
   | VWild
@@ -37,15 +39,15 @@ data Val
 instance Alpha Exp
 instance Alpha Val
 
-instance Subst Exp Loc
-instance Subst Exp Region
-instance Subst Exp Position
-instance Subst Exp PrimInstr
-instance Subst Exp PrimVal
+instance Subst Val Loc
+instance Subst Val Region
+instance Subst Val Position
+instance Subst Val PrimVal
+instance Subst Val PrimInstr
 
-instance Subst Exp Val
-instance Subst Exp Exp where
-  isvar (EVal (VVar x)) = Just (SubstName x)
+instance Subst Val Exp
+instance Subst Val Val where
+  isvar (VVar x) = Just (SubstName x)
   isvar _ = Nothing
 
 
@@ -68,6 +70,9 @@ let_ bs b =
 --        let x1 = g x
 --            x2 = h y
 --        in  f x1 x2
+
+normalize :: B.Term -> Exp
+normalize = runFreshM . anf
 
 anf :: B.Term -> FreshM Exp
 anf = \case
@@ -121,3 +126,48 @@ anfVal tm = case tm of
     v <- fresh $ string2Name "x"
     tm' <- anf tm
     return (VVar v, Just (v, tm'))
+
+
+instance Pretty Exp where
+  pretty = runFreshM . prettyFreshExp
+
+instance Pretty Val where
+  pretty = runFreshM . prettyFreshVal
+
+
+prettyFreshExp :: Exp -> FreshM (Doc ann)
+prettyFreshExp = \case
+  EVal v -> prettyFreshVal v
+
+  EPrim i t1 t2 -> do
+    t1' <- prettyFreshVal t1
+    t2' <- prettyFreshVal t2
+    return $ pretty i <+> parens t1' <+> parens t2'
+  
+  EApp f as -> do
+    f' <- prettyFreshVal f 
+    as' <- mapM prettyFreshVal as
+    return $ f' <+> hsep as'
+
+  ELet bnd -> do
+    (brs, body) <- unbind bnd
+    brs' <- mapM (\(v, e) -> prettyFreshExp (unembed e) >>= \e' -> return (pretty (show v) <+> "=" <+> e')) (unrec brs)
+    body' <- prettyFreshExp body
+    return $ "let" <+> hsep (punctuate comma brs') <+> "in" <+> body'
+  
+  ELoc _ e -> prettyFreshExp e
+
+
+
+prettyFreshVal :: Val -> FreshM (Doc ann)
+prettyFreshVal = \case  
+  VVar v        -> return . pretty . show $ v
+  VLam bnd -> do
+    (xs, body) <- unbind bnd
+    let xs' = (pretty . show) <$> xs 
+    body' <- prettyFreshExp body
+    return $ "\\" <> hsep xs' <> "." <+> body'
+
+  VVal v   -> return $ pretty v
+  VLoc _ v -> prettyFreshVal v
+  VWild    -> return "_"

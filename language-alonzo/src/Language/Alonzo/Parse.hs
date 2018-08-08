@@ -19,9 +19,8 @@ import Data.Text.Prettyprint.Doc.Render.Text
 import Text.Earley (Report (..), Prod)
 
 import Language.Alonzo.Lex (lex)
-import Language.Alonzo.Lex.LFCut
+import Language.Alonzo.Lex.Linefold
 import Language.Alonzo.Lex.Token
-import Language.Alonzo.Lex.Organize
 import Language.Alonzo.Parse.Error
 import Language.Alonzo.Parse.Grammar
 import Language.Alonzo.Syntax.Source
@@ -33,7 +32,7 @@ parseFile :: FilePath -> Text -> Either ParseError [Decl]
 parseFile fp srcTxt =
   runExcept $ do
     toks <- withExcept PLexErr $ lex fp srcTxt
-    let toks' = lfCut . organize $ toks
+    let toks' = splitlf toks
     mapM parse toks'
 
 
