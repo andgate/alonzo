@@ -2,7 +2,7 @@
             , DeriveGeneric
             , LambdaCase 
             #-}
-module Language.Alonzo.Transform.Lifted where
+module Language.Alonzo.Transform.Lift where
 
 import Data.Text
 import Data.Typeable (Typeable)
@@ -20,10 +20,15 @@ data Lambda = Lambda String (Bind [Var] Term)
   deriving(Show, Generic, Typeable)
 
 data Term
-  = TVal
+  = TVar Var
+  | TVal PrimVal
   | TPrim PrimInstr Term Term
   | TApp Term [Term]
   | TLet (Bind (Rec [(Var, Embed Term)]) Term)
   | TLoc Loc Term
   | TWild
   deriving(Show, Generic, Typeable)
+
+
+lift :: A.Term -> (Term, [Lambda])
+lift t = undefined

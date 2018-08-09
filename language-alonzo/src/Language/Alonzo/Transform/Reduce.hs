@@ -2,7 +2,7 @@
            , GeneralizedNewtypeDeriving
            , OverloadedStrings
  #-}
-module Language.Alonzo.Eval where
+module Language.Alonzo.Transform.Reduce where
 
 
 import Control.Lens hiding (toListOf)
@@ -16,67 +16,64 @@ import Unbound.Generics.LocallyNameless.Internal.Fold (toListOf)
 
 import qualified Data.Map.Strict as Map
 
-type Closure = Map Text Exp
+type Closure = Map Text Term
 
-reduce :: Closure -> Exp -> Val
-reduce cl = runFreshM . reduceExp cl
+reduce :: Closure -> Term -> Val
+reduce cl = runFreshM . reduceTerm cl
 
 
-reduceExp :: Closure -> Exp -> FreshM Val
-reduceExp cl = \case
-  EVal v -> return v
+reduceTerm :: Closure -> Term -> FreshM Val
+reduceTerm cl = \case
+  TVal v -> return v
   
-  EPrim i a b -> do
+  TPrim i a b -> do
     case (a, b) of
       (VVal v1, VVal v2) ->
            return . VVal $ evalInstr (i, v1, v2)
-      (VLoc _ a, b) -> reduceExp cl $ EPrim i a b
-      (a, VLoc _ b) -> reduceExp cl $ EPrim i a b
+      (VLoc _ a, b) -> reduceTerm cl $ TPrim i a b
+      (a, VLoc _ b) -> reduceTerm cl $ TPrim i a b
       _ -> error "Primitive instruction encountered non-primitive values"
 
-  EApp f []     -> return f
-  EApp f (a:as) ->
+  TApp f []     -> return f
+  TApp f (a:as) ->
     case f of
       VLam bnd -> do
         (xs, body)   <- unbind bnd
         case xs of
-          []    -> reduceExp cl body
+          []    -> reduceTerm cl body
           x:[]  -> do
-            f' <- reduceExp cl (subst x a body)
+            f' <- reduceTerm cl (subst x a body)
             case as of
               [] -> return f'
-              _  -> reduceExp cl $ EApp f' as
+              _  -> reduceTerm cl $ TApp f' as
               
           x:xs' ->
             let body' = subst x a body
                 f' = VLam $ bind xs' body'
-            in reduceExp cl $ EApp f' as
+            in reduceTerm cl $ TApp f' as
 
       VVar v ->
         case Map.lookup (pack $ name2String v) cl of
           Nothing -> error $ "undeclared variable encountered: " ++ (name2String v)
           Just t -> do
-            t' <- reduceExp cl t
-            reduceExp cl $ EApp t' (a:as)
+            t' <- reduceTerm cl t
+            reduceTerm cl $ TApp t' (a:as)
 
-      VLoc _ f' -> reduceExp cl $ EApp f' (a:as)
+      VLoc _ f' -> reduceTerm cl $ TApp f' (a:as)
 
-      _ -> error $ "Application head must be a lambda term: " ++ (show $ pretty $ EApp f (a:as))
+      _ -> error $ "Application head must be a lambda term: " ++ (show $ pretty $ TApp f (a:as))
 
 
-  ELet bnd -> do
+  TLet bnd -> do
     (r, body) <- unbind bnd
     let bs = unrec r
-    bs' <- mapM (\(v, rhs) -> reduceExp cl (unembed rhs) >>= \rhs' -> return (v, rhs')) (unrec r)
+    bs' <- mapM (\(v, rhs) -> reduceTerm cl (unembed rhs) >>= \rhs' -> return (v, rhs')) (unrec r)
 
         -- Substitute all terms into the body
     let body' = foldr (\(v, rhs) body' -> subst v rhs body') body bs'
         fvs = toListOf fv body'
     if any (\(v,_) -> v `elem` fvs) bs
-      then reduceExp cl . ELet $ bind r body'
-      else reduceExp cl body'
+      then reduceTerm cl . TLet $ bind r body'
+      else reduceTerm cl body'
 
-  ELoc _ e   -> reduceExp cl e
-
-
--- ELet [("true", EVal (ELam ["t", "f"] (EVal $ VVar "t"))] (EApp (VVar "true") [VVal 1, VVal 0])
+  TLoc _ t   -> reduceTerm cl t

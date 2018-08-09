@@ -30,7 +30,7 @@ import Language.Alonzo.Parse
 import Language.Alonzo.Parse.Error
 import Language.Alonzo.Syntax.Location
 import Language.Alonzo.Transform
-import Language.Alonzo.Eval (reduce, Closure)
+import Language.Alonzo.Transform.Reduce (reduce, Closure)
 import System.IO (hFlush, stdout)
 
 import qualified Data.List as List
@@ -47,7 +47,7 @@ data ReplState
   = ReplState
     { _replQuit :: Bool
     , _replMod :: Text
-    , _replClosure :: Map Text A.Exp
+    , _replClosure :: Map Text A.Term
     , _replHistory :: [String]
     }
 
@@ -134,13 +134,13 @@ printPretty p =
   liftIO $ putDoc (pretty p) >> putStr "\n"
 
 
-transform' :: S.Term -> Repl A.Exp
+transform' :: S.Term -> Repl A.Term
 transform' t = do 
   liftIO $ putStr "Source:"
   printPretty t
   return $ transform t
 
-reduce' :: A.Exp -> Repl A.Val
+reduce' :: A.Term -> Repl A.Val
 reduce' t = do
   liftIO $ putStr "Anormalized:"
   printPretty t
@@ -188,6 +188,7 @@ checkPrograms fp ps@(cl, ts) = do
   detectClosureConflict fp cl
   replCl <- use replClosure
   let ns = Map.keys replCl ++ Map.keys cl
+  -- TODO: Actually check the prelude names
   return ()
 
 
@@ -206,7 +207,9 @@ installPrograms cl = do
 
 
 runPrograms :: [S.Term] -> Repl ()
-runPrograms ts = return ()
+runPrograms ts =
+  -- TODO: Run programs specified in prelude
+  return ()
 
 
 

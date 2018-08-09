@@ -19,24 +19,24 @@ import qualified Language.Alonzo.Transform.NameBind as B
 
 type Var = Name Val
 
-data Exp
-  = EVal Val
-  | EPrim PrimInstr Val Val
-  | EApp Val [Val]
-  | ELet (Bind (Rec [(Var, Embed Exp)]) Exp)
-  | ELoc Loc Exp
+data Term
+  = TVal Val
+  | TPrim PrimInstr Val Val
+  | TApp Val [Val]
+  | TLet (Bind (Rec [(Var, Embed Term)]) Term)
+  | TLoc Loc Term
   deriving(Show, Generic, Typeable)
 
 data Val
   = VVar Var
-  | VLam (Bind [Var] Exp)
+  | VLam (Bind [Var] Term)
   | VVal PrimVal
   | VLoc Loc Val
   | VWild
   deriving(Show, Generic, Typeable)
 
 
-instance Alpha Exp
+instance Alpha Term
 instance Alpha Val
 
 instance Subst Val Loc
@@ -45,7 +45,7 @@ instance Subst Val Position
 instance Subst Val PrimVal
 instance Subst Val PrimInstr
 
-instance Subst Val Exp
+instance Subst Val Term
 instance Subst Val Val where
   isvar (VVar x) = Just (SubstName x)
   isvar _ = Nothing
@@ -54,15 +54,20 @@ instance Subst Val Val where
 name :: B.Var -> Var
 name = string2Name . name2String
 
-lam :: [Var] -> Exp -> Exp
+lam :: [Var] -> Term -> Term
 lam vs body =
-  EVal . VLam $ bind vs body
+  TVal . VLam $ bind vs body
 
-let_ :: [(Var, Exp)] -> Exp -> Exp
+let_ :: [(Var, Term)] -> Term -> Term
 let_ [] b = b
 let_ bs b =
   let bs' = rec [ (v, embed t) | (v, t) <- bs ]
-  in ELet $ bind bs' b
+  in TLet $ bind bs' b
+
+
+free :: Term -> [Var]
+free t =
+  toListOf (fv :: Fold Term (Name Val)) t
 
 
 -- foo = \x y. f (g x) (h y)
@@ -71,21 +76,21 @@ let_ bs b =
 --            x2 = h y
 --        in  f x1 x2
 
-normalize :: B.Term -> Exp
+normalize :: B.Term -> Term
 normalize = runFreshM . anf
 
-anf :: B.Term -> FreshM Exp
+anf :: B.Term -> FreshM Term
 anf = \case
-  B.TVar v -> return . EVal . VVar $ name v
-  B.TVal v -> return . EVal $ VVal v
+  B.TVar v -> return . TVal . VVar $ name v
+  B.TVal v -> return . TVal $ VVal v
   
   B.TPrim i a b -> do
     ([a', b'], brs) <- anfVals [a, b]
-    return $ let_ brs (EPrim i a' b')
+    return $ let_ brs (TPrim i a' b')
 
   B.TApp f xs -> do
     (f':xs', brs) <- anfVals (f:xs)
-    return $ let_ brs (EApp f' xs')
+    return $ let_ brs (TApp f' xs')
 
   B.TLam bs -> do
     (vs, t) <- unbind bs
@@ -98,18 +103,18 @@ anf = \case
     body' <- anf body
     return $ let_ brs' body'
 
-  B.TLoc l t -> anf t >>= (return . ELoc l)
-  B.TWild -> return $ EVal VWild
+  B.TLoc l t -> anf t >>= (return . TLoc l)
+  B.TWild -> return $ TVal VWild
 
 
-anfVals :: [B.Term] -> FreshM ([Val], [(Var, Exp)])
+anfVals :: [B.Term] -> FreshM ([Val], [(Var, Term)])
 anfVals ts = do
   rs <- mapM anfVal ts
   let vs = fst <$> rs
       ds = catMaybes $ snd <$> rs
   return (vs, ds)
 
-anfVal :: B.Term -> FreshM (Val, Maybe (Var, Exp))
+anfVal :: B.Term -> FreshM (Val, Maybe (Var, Term))
 anfVal tm = case tm of
   B.TVar v -> return (VVar (name v), Nothing)
   B.TVal v -> return (VVal v, Nothing)
@@ -118,7 +123,7 @@ anfVal tm = case tm of
     (v, mb) <- anfVal t
     case mb of
       Nothing       -> return (VLoc l v, Nothing)
-      Just (var, f) -> return (VLoc l v, Just (var, ELoc l f))
+      Just (var, f) -> return (VLoc l v, Just (var, TLoc l f))
 
   B.TWild   -> return (VWild, Nothing)
 
@@ -128,34 +133,34 @@ anfVal tm = case tm of
     return (VVar v, Just (v, tm'))
 
 
-instance Pretty Exp where
-  pretty = runFreshM . prettyFreshExp
+instance Pretty Term where
+  pretty = runFreshM . prettyFreshTerm
 
 instance Pretty Val where
   pretty = runFreshM . prettyFreshVal
 
 
-prettyFreshExp :: Exp -> FreshM (Doc ann)
-prettyFreshExp = \case
-  EVal v -> prettyFreshVal v
+prettyFreshTerm :: Term -> FreshM (Doc ann)
+prettyFreshTerm = \case
+  TVal v -> prettyFreshVal v
 
-  EPrim i t1 t2 -> do
+  TPrim i t1 t2 -> do
     t1' <- prettyFreshVal t1
     t2' <- prettyFreshVal t2
-    return $ pretty i <+> parens t1' <+> parens t2'
+    return $ pretty i <+> t1' <+> t2'
   
-  EApp f as -> do
+  TApp f as -> do
     f' <- prettyFreshVal f 
     as' <- mapM prettyFreshVal as
     return $ f' <+> hsep as'
 
-  ELet bnd -> do
+  TLet bnd -> do
     (brs, body) <- unbind bnd
-    brs' <- mapM (\(v, e) -> prettyFreshExp (unembed e) >>= \e' -> return (pretty (show v) <+> "=" <+> e')) (unrec brs)
-    body' <- prettyFreshExp body
+    brs' <- mapM (\(v, t) -> prettyFreshTerm (unembed t) >>= \t' -> return (pretty (show v) <+> "=" <+> t')) (unrec brs)
+    body' <- prettyFreshTerm body
     return $ "let" <+> hsep (punctuate comma brs') <+> "in" <+> body'
   
-  ELoc _ e -> prettyFreshExp e
+  TLoc _ t -> prettyFreshTerm t
 
 
 
@@ -165,7 +170,7 @@ prettyFreshVal = \case
   VLam bnd -> do
     (xs, body) <- unbind bnd
     let xs' = (pretty . show) <$> xs 
-    body' <- prettyFreshExp body
+    body' <- prettyFreshTerm body
     return $ "\\" <> hsep xs' <> "." <+> body'
 
   VVal v   -> return $ pretty v

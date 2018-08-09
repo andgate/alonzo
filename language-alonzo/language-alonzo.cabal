@@ -54,8 +54,6 @@ library
       Language.Alonzo.Analysis.Infer
       Language.Alonzo.Analysis.NameCheck
 
-      Language.Alonzo.Eval
-
       Language.Alonzo.Lex
       Language.Alonzo.Lex.Error
       Language.Alonzo.Lex.Linefold
@@ -74,8 +72,9 @@ library
       Language.Alonzo.Transform
       Language.Alonzo.Transform.ANorm
       Language.Alonzo.Transform.CConv
-      Language.Alonzo.Transform.Lifted
+      Language.Alonzo.Transform.Lift
       Language.Alonzo.Transform.NameBind
+      Language.Alonzo.Transform.Reduce
   
   other-modules:
   default-language: Haskell2010
