@@ -1,13 +1,42 @@
-## Alonzo Tutorial
+# Tutorial
 
-Alonzo is a purely untyped, functional programming language. This language strives to model the lambda calculus, developed by Alonzo Church. By equipping the lambda calculus with a simple syntax for objects, Alonzo provides a solid basis for programming in a dynamic, functional style.
+## Install
 
-# Enter The Lambda
+First, you need to install ghc and cabal, preferably the most recent.
+I recommend using ubuntu to access them.
 
-As a purely functional language, Alonzo programs are written using functions, which are described by expressions, also called terms. Here is one example of a term...
+## Enter the lambda
+
+To use the langauge, for now, you have to go into the repl.
+
+With the necessary tools installed, the repl can be started via the command:
+
 ```
-repl> 1 + 5
-6
+cabal new-run alci
 ```
-Terms are very powerful tools for expressing computations. Our terms are written in the language of the lambda calculus. We have variables like `x`, `y`, `foo`, etc. Any lower case string is essentially a variable in Alonzo.
-Then we have data constructors. `Just x`, `Nothing`, `List cons rest` are all examples. Data constructors are the meat of most programs.
+
+This will load the prelude, and drop you into the repl.
+
+## Basic Syntax
+
+The basic syntax of Alonzo is describe by the following syntax tree...
+
+```
+Def d ::= name = term
+
+Term t ::=  var
+            var var
+            \var. var
+            let var = t, var = t, ... in t
+```
+
+In Alonzo, the language is restricted to only having variables, function calls, and anonymous functions. This is called the untyped lambda calculus.
+
+## Hello world
+
+With the lambda calculus, we can do anything. How about hello world!
+
+hello = #print "hello world"
+
+Very simple!
+
