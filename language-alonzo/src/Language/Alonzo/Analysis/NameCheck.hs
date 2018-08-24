@@ -6,63 +6,83 @@ import Data.List
 import Data.Text (Text)
 import Data.Text.Prettyprint.Doc hiding (group)
 import Data.Text (Text, pack)
+import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Language.Alonzo.Syntax.Location
 import Language.Alonzo.Syntax.Source
 
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.List.NonEmpty  as NE
 
 
 data NameError
   = NameNotFound Loc Text
-  | NameConflict Loc Text
+  | NameConflict Text Loc Loc
 
 instance Pretty NameError where
     pretty = \case
         NameNotFound l n ->
             pretty l <+> "Name Not Found:" <+> pretty n
         
-        NameConflict l n ->
-            pretty l <+> "Name Conflict Detected:" <+> pretty n
+        NameConflict n l l' ->
+            vsep [ "Name conflict detected between"
+                 , pretty n <+> "at" <+> pretty l'
+                 , "and" <+> pretty n <+> "at" <+> pretty l
+                 ]
 
-namecheck :: Set Text -> Loc -> Term -> [NameError]
-namecheck vs l = \case
-  TVar v -> 
-    if v `Set.member` vs
+namecheckTerms :: Map Text Loc -> [Term] -> [NameError]
+namecheckTerms d = mconcat . map (namecheck d)
+
+namecheck :: Map Text Loc -> Term -> [NameError]
+namecheck vs = \case
+  TVar (v, l) -> 
+    if v `Map.member` vs
       then []
       else [NameNotFound l v]
 
   TVal _ -> []
   
   TApp f xs -> 
-    let nc = namecheck vs l
+    let nc = namecheck vs
         f' = nc f
         xs' = nc <$> NE.toList xs
     in f' ++ fold xs'
 
   TPrim _ x y ->
-    let x' = namecheck vs l x
-        y' = namecheck vs l y
+    let x' = namecheck vs x
+        y' = namecheck vs y
     in x' ++ y'
   
-  TLam us body ->
-    let us' = NE.toList us
-        vs' = foldr (\v vs -> Set.insert v vs) vs us'
-        freq s = map (\x -> (head x, length x)) . group . sort $ s
-        conflicts = foldr (\(v, n) acc -> if n == 1 then acc else (NameConflict l v):acc) [] (freq us')
-        body' = namecheck vs' l body
-    in body' ++ (reverse conflicts)
+  TLam ns body ->
+    let ns' = checkConflicts $ NE.toList ns
+        vs' = vs `Map.union` (Map.fromList $ NE.toList ns)
+        body' = namecheck vs' body
+    in ns' ++ body'
 
   TLet bs body ->
     let bs' = NE.toList bs
-        us = fst <$> bs'
+        ns = fst <$> bs'
         xs = snd <$> bs'
-        vs' = foldr (\v vs -> Set.insert v vs) vs us
-        xs' = namecheck vs' l <$> xs
-        body' = namecheck vs' l body
-    in body' ++ fold xs'
+        vs' = foldr (\(n, l) vs -> Map.insert n l vs) vs ns
+        xs' = namecheck vs' <$> xs
+        body' = namecheck vs' body
+    in fold xs' ++ body'
   
-  TLoc    l' t -> namecheck vs l' t
-  TParens t    -> namecheck vs l t
+  TLoc    _ t  -> namecheck vs t -- you'd think this would be useful here but nah
+  TParens t    -> namecheck vs t
   TWild        -> []
+
+
+checkConflicts :: [(Text, Loc)] -> [NameError]
+checkConflicts =
+    map (\(n, l, l') -> NameConflict n l l') . conflicts
+
+conflicts :: Ord a => [(a, Loc)] -> [(a, Loc, Loc)]
+conflicts = snd . dups' Map.empty []
+  where
+    dups' seen ns' ns = foldr go (seen, ns') ns
+    go (n, l) (seen, ns') =
+      case Map.lookup n seen of
+        Nothing -> (Map.insert n l seen, ns')
+        Just l' -> (seen, (n, l, l'):ns')

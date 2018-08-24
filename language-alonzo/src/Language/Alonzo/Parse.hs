@@ -28,23 +28,20 @@ import Language.Alonzo.Syntax.Source
 import qualified Text.Earley as E
 
 
-parseFile :: FilePath -> Text -> Either ParseError [Decl]
-parseFile fp srcTxt =
-  runExcept $ do
-    toks <- withExcept PLexErr $ lex fp srcTxt
-    let toks' = splitlf toks
-    mapM parse toks'
+
+parseFiles :: [(FilePath, Text)] -> ([ParseError], [[Stmt]])
+parseFiles = foldr (\(es, ss) (es', ss') -> (es ++ es', ss:ss')) ([],[]) . map (uncurry parseText)
+
+parseText :: FilePath -> Text -> ([ParseError], [Stmt])
+parseText fp srcTxt =
+    let toks = runExcept . withExcept PLexErr $ lex fp srcTxt
+    in case splitlf <$> toks of
+        Left e      -> ([e], [])
+        Right toks' ->  partitionEithers $ map (runExcept . parseTokens) toks'
 
 
-parseDecl :: FilePath -> Text -> Either ParseError Decl
-parseDecl fp srcTxt =
-  runExcept $ do 
-    toks <- withExcept PLexErr $ lex fp srcTxt
-    parse toks
-
-
-parse :: [Token] -> Except ParseError Decl
-parse toks = do
+parseTokens :: [Token] -> Except ParseError Stmt
+parseTokens toks = do
   let (parses, r@(Report _ expected unconsumed)) = E.fullParses (E.parser alonzoGrammar) toks
   case parses of
     []  -> throwError $ UnexpectedToken unconsumed expected

@@ -24,33 +24,33 @@ import qualified Data.List.NonEmpty as NE
 
 -- -----------------------------------------------------------------------------
 -- Grammar for Alonzo
-alonzoGrammar :: Grammar r (Prod r String Token Decl)
+alonzoGrammar :: Grammar r (Prod r String Token Stmt)
 alonzoGrammar = mdo
 
 -- -----------------------------------------------------------------------------
--- Declaration Rules
+-- Statement Rules
 
-    decl <- rule $
-        ( funDecl
-      <|> termDecl) <* optional eof
+    stmt <- rule $
+      (execTerm <|> program) <* optional eof
 
-    termDecl <- rule $
-      (TermDecl <$> term)
+    execTerm <- rule $
+      let ex t = STerm t
+      in ex <$> term
 
-    funDecl <- rule $
-      let ex (n, _) body = FunDecl n body
-      in ex <$> varId <*> (rsvp "=" *> term)
+    program <- rule $
+      let ex n body = SProg n body
+      in ex <$> (varId <|> conId) <*> (rsvp "=" *> term)
 
 
 -- -----------------------------------------------------------------------------
 -- Value Rules
 
     val <- rule $
-            ( first VInt   <$> intLit )
-        <|> ( first VFloat <$> floatLit )
-        <|> ( first VChar  <$> charLit )
-        <|> ( first VBool  <$> boolLit )
-        <|> ( first VString  <$> strLit )
+            ( first VInt    <$> intLit )
+        <|> ( first VFloat  <$> floatLit )
+        <|> ( first VChar   <$> charLit )
+        <|> ( first VBool   <$> boolLit )
+        <|> ( first VString <$> strLit )
 
 
 -- -----------------------------------------------------------------------------
@@ -79,7 +79,7 @@ alonzoGrammar = mdo
     -- Terms
 
     termVar <- rule $
-      let ex (v, l) = TLoc l $ TVar v
+      let ex (v, l) = TLoc l $ TVar (v, l)
       in ex <$> varId
 
     termVal <- rule $
@@ -99,7 +99,7 @@ alonzoGrammar = mdo
     termLam <- rule $
       let ex (_,l1) vs body@(TLoc l2 _) =
             TLoc (l1<>l2) $ TLam (NE.fromList vs) body
-      in ex <$> lambda <*> some varId' <*> (rsvp "." *> term)
+      in ex <$> lambda <*> some varId <*> (rsvp "." *> term)
 
     lambda <- rule $
       rsvp "\\" <|> rsvp "λ"
@@ -112,7 +112,7 @@ alonzoGrammar = mdo
       commaSep letBind
 
     letBind <- rule $ 
-      let ex (n, _) t = (n, t) 
+      let ex n t = (n, t) 
       in ex <$> varId <*> (rsvp "=" *> term)
 
     termParens <- rule $
@@ -235,4 +235,4 @@ alonzoGrammar = mdo
       Postfix <$ rsvp "postfix" 
 -}
 
-    return decl
+    return stmt

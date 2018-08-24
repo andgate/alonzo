@@ -6,18 +6,16 @@ import Language.Alonzo.Syntax.Location
 
 -- | Split a list of tokens at toplevel linefolds
 splitlf :: [Token] -> [[Token]]
-splitlf = splitlf' [] []
+splitlf = filter (not . null) . foldr go ([]:[])
+  where
+    go :: Token         -- Cut accumulator
+       -> [[Token]]     -- Cuts
+       -> [[Token]]
+    go t (cut:cuts) = case t of
+      Token _ _ (Loc _ (R (P _ 0) _))
+        -> ([]:((t:cut):cuts))
 
-splitlf' :: [Token] -> [[Token]] -> [Token] -> [[Token]]
-splitlf' cur cut = \case 
-  [] ->
-      tail $ reverse $ (reverse cur):cut
-  
-  (t@(Token _ _ (Loc _ (R (P _ 0) _))):ts) ->
-      splitlf' [t] ((reverse cur):cut) ts
-
-  ((Token TokenEof _ _):ts) ->
-      splitlf' cur cut ts
-  
-  (t:ts) -> 
-      splitlf' (t:cur) cut ts
+      Token TokenEof _ _ 
+        -> (cut:cuts)
+        
+      _ -> ((t:cut):cuts)

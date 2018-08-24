@@ -1,0 +1,46 @@
+-- List Constructors
+Nil: -- empty
+Cons: x l -- Record with fields x and l.
+
+-- Maybe Constructors
+Nothing: -- totally empty, like nil
+Just: x
+
+-- Super Constructors!
+List :> Nil
+List :> Cons
+
+Maybe :> Nothing
+Maybe :> Just
+
+-- Store information at compile-time!
+Five <: Just where
+  x = 5
+
+-- Pattern matching
+map = \f x. case x of
+  List -> mapList f x
+  Maybe -> mapMaybe f x
+
+mapList = \f. \case
+  Nil      -> Nil
+  Cons x l -> Cons (f x) (mapList f l)
+
+mapMaybe = \f. \case
+  Nothing -> Nothing
+  Just x  -> Just (f x)
+
+
+-- Category theory!
+Functor: <$>
+Applicative <: Functor: pure <*>
+Monad <: Functor: return >>=
+
+-- Embed functors into Lists!
+List <: Functor where
+  <$> = mapList
+
+Maybe <: Functor where
+  <$> = mapMaybe
+
+..and so on to monads.

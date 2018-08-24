@@ -1,28 +1,62 @@
 {-# LANGUAGE LambdaCase
            , GeneralizedNewtypeDeriving
            , OverloadedStrings
+           , FlexibleContexts
  #-}
 module Language.Alonzo.Transform.Reduce where
 
 
 import Control.Lens hiding (toListOf)
+import Control.Monad.Except
 import Data.Map.Strict (Map)
 import Data.Text (Text, pack, unpack)
 import Data.Text.Prettyprint.Doc
 import Language.Alonzo.Transform.ANorm
 import Language.Alonzo.Syntax.Prim
 import Unbound.Generics.LocallyNameless
+import Unbound.Generics.LocallyNameless.Fresh
 import Unbound.Generics.LocallyNameless.Internal.Fold (toListOf)
 
 import qualified Data.Map.Strict as Map
 
-type Closure = Map Text Term
-
-reduce :: Closure -> Term -> Val
-reduce cl = runFreshM . reduceTerm cl
 
 
-reduceTerm :: Closure -> Term -> FreshM Val
+
+data ReduceErr
+  = PrimOpFailure
+  | UndeclaredVar String
+  | AppHeadLambda Term
+
+
+instance Pretty ReduceErr where
+  pretty = \case
+    PrimOpFailure   -> "Primitive instruction encountered non-primitive values"
+    UndeclaredVar n -> "Undeclared variable encountered:" <+> pretty n
+    AppHeadLambda t -> "Application head must be lambda term:" <+> pretty t
+
+
+
+newtype ReduceM a = ReduceM { unReduceM :: ExceptT ReduceErr FreshM a }
+  deriving (Functor, Applicative, Monad, MonadError ReduceErr, Fresh)
+
+
+reduce :: Closure -> [Either ReduceErr Val]
+reduce = runFreshM . reduceClosure
+
+
+reduceClosure :: Closure -> FreshM [Either ReduceErr Val]
+reduceClosure (Closure bnd) = do
+  (ds, ps) <- unbind bnd
+  -- Prep closure for reduction 
+  let ns = (name2String . fst) <$> unrec ds
+      ts = (unembed . snd) <$> unrec ds
+      cl' = Map.fromList (zip ns ts)
+
+  -- Reduce given programs
+  mapM (runExceptT . reduceTerm cl') ps
+
+
+reduceTerm :: (MonadError ReduceErr m, Fresh m) => Map String Term -> Term -> m Val
 reduceTerm cl = \case
   TVal v -> return v
   
@@ -32,7 +66,7 @@ reduceTerm cl = \case
            return . VVal $ evalInstr (i, v1, v2)
       (VLoc _ a, b) -> reduceTerm cl $ TPrim i a b
       (a, VLoc _ b) -> reduceTerm cl $ TPrim i a b
-      _ -> error "Primitive instruction encountered non-primitive values"
+      _ -> throwError PrimOpFailure
 
   TApp f []     -> return f
   TApp f (a:as) ->
@@ -53,15 +87,15 @@ reduceTerm cl = \case
             in reduceTerm cl $ TApp f' as
 
       VVar v ->
-        case Map.lookup (pack $ name2String v) cl of
-          Nothing -> error $ "undeclared variable encountered: " ++ (name2String v)
+        case Map.lookup (name2String v) cl of
+          Nothing -> throwError $ UndeclaredVar (name2String v)
           Just t -> do
             t' <- reduceTerm cl t
             reduceTerm cl $ TApp t' (a:as)
 
       VLoc _ f' -> reduceTerm cl $ TApp f' (a:as)
 
-      _ -> error $ "Application head must be a lambda term: " ++ (show $ pretty $ TApp f (a:as))
+      _ -> throwError $ AppHeadLambda (TApp f (a:as))
 
 
   TLet bnd -> do

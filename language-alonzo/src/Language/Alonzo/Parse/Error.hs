@@ -5,14 +5,14 @@ module Language.Alonzo.Parse.Error where
 import Data.Text.Prettyprint.Doc
 import Language.Alonzo.Lex.Error
 import Language.Alonzo.Lex.Token
-import Language.Alonzo.Syntax.Source (Decl)
+import Language.Alonzo.Syntax.Source
 
 
 data ParseError
     = UnexpectedToken [Token] [String]
-    | AmbiguousGrammar [Decl]
+    | AmbiguousGrammar [Stmt]
     | PLexErr LexError
-    deriving(Show)
+
 
 instance Pretty ParseError where
     pretty = \case
@@ -21,9 +21,11 @@ instance Pretty ParseError where
                  , pretty "Expected tokens:" <+> dquotes (pretty expected)
                  ]
     
-        AmbiguousGrammar srcs ->
+        -- This should never happen.
+        -- Please email me if you get this.
+        AmbiguousGrammar cls ->
             vcat [ pretty "Severe Parser Error: Ambiguous grammar encountered. Please report."
-                 , vcat (pretty <$> srcs)
+                 , vcat (pretty <$> cls)
                  ]
 
         PLexErr err ->

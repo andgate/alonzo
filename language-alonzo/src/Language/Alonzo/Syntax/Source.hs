@@ -22,6 +22,8 @@ import Data.Text (Text, pack)
 import Data.Text.Prettyprint.Doc
 import Data.Map.Strict (Map)
 import Data.Maybe
+import Data.Monoid
+import Data.Semigroup
 
 import Language.Alonzo.Syntax.Location as X
 import Language.Alonzo.Syntax.Prim as X
@@ -30,23 +32,36 @@ import qualified Data.Map.Strict     as Map
 import qualified Data.List.NonEmpty  as NE
 
 -- -----------------------------------------------------------------------------
--- | Declarations
+-- | Closure
 
-type Closure = Map Text Term
-type Program = (Closure, Term)
-type Programs = (Closure, [Term])
+data Closure = Closure [Program] [Term]
 
-data Decl
-  = TermDecl Term
-  | FunDecl  Text Term
-  deriving (Show, Generic, Typeable)
+data Program =
+  Program { _progName :: (Text, Loc)
+          , _progTerm :: Term
+          }
 
 
-programs :: [Decl] -> Programs
-programs = foldr go (Map.empty, [])
-  where go d (cl, ts) = case d of
-            TermDecl t -> (cl, t:ts)
-            FunDecl n t -> (Map.insert n t cl, ts)
+instance Semigroup Closure where
+  (Closure ps1 ts1) <> (Closure ps2 ts2)
+    = Closure (ps1 <> ps2) (ts1 <> ts2)
+
+instance Monoid Closure where
+  mempty = Closure mempty mempty
+ 
+
+closure :: [Stmt] -> Closure
+closure ss = foldr go mempty ss
+  where
+    go (SProg (n, l) t) cl = cl <> Closure [Program (n,l) t] []
+    go (STerm t) cl = cl <> Closure [] [t] 
+
+-- -----------------------------------------------------------------------------
+-- | Statements
+
+data Stmt
+  = SProg (Text, Loc) Term
+  | STerm Term
 
 
 -- -----------------------------------------------------------------------------
@@ -54,7 +69,7 @@ programs = foldr go (Map.empty, [])
 
 data Term
   -- x
-  = TVar  Text
+  = TVar  (Text, Loc)
   -- integers, floats, characters, booleans, etc.
   | TVal  PrimVal
   
@@ -68,10 +83,10 @@ data Term
   -- λ x . body
   -- \ x . body
   -- forall x . body
-  | TLam   (NonEmpty Text) Term
+  | TLam   (NonEmpty (Text, Loc)) Term
 
   -- let x = t in body
-  | TLet   (NonEmpty (Text, Term)) Term
+  | TLet   (NonEmpty ((Text, Loc), Term)) Term
   
   -- Location decorator
   | TLoc    Loc Term
@@ -89,26 +104,30 @@ instance Locatable Term where
 -- -----------------------------------------------------------------------------
 -- | Pretty Instances
 
-instance Pretty Decl where
-  pretty = \case
-    TermDecl        t -> pretty t
-    FunDecl       n t -> pretty n <+> "=" <+> pretty t
+instance Pretty Closure where
+  pretty (Closure ps ts) =
+    vsep $ [pretty n <+> "=" <+> pretty t | (Program (n, _) t) <- ps]
+         ++ map pretty ts
 
+instance Pretty Stmt where
+  pretty = \case
+    SProg (n, _) t -> pretty n <+> "=" <+> pretty t
+    STerm t -> pretty t
 
 instance Pretty Term where
     pretty = \case
       -- Terms
-      TVar n      -> pretty n
+      TVar (n, _) -> pretty n
       TVal v      -> pretty v
       
       TPrim i t t' -> pretty (show i) <+> pretty t <+> pretty t'
       
       TApp e1 e2  -> pretty e1 <+> hsep (pretty <$> NE.toList e2)
       
-      TLam ps body -> "\\" <+> hsep (pretty <$> NE.toList ps) <+> "." <+> pretty body 
+      TLam ps body -> "\\" <+> hsep (pretty . fst <$> NE.toList ps) <+> "." <+> pretty body 
 
       TLet bs body ->
-          "let" <+> hsep (punctuate comma [pretty x <+> "=" <+> pretty t | (x, t) <- NE.toList bs]) <+> "in" <+> pretty body
+          "let" <+> hsep (punctuate comma [pretty x <+> "=" <+> pretty t | ((x, _), t) <- NE.toList bs]) <+> "in" <+> pretty body
       
       TLoc _ t  -> pretty t -- ignore location
       TParens t -> parens $ pretty t
@@ -155,5 +174,3 @@ instance Pretty ForeignType where
   pretty ForeignC =
     "ForeignC"
 -}
-
-

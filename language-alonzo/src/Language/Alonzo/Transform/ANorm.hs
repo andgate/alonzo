@@ -6,6 +6,7 @@
            #-}
 module Language.Alonzo.Transform.ANorm where
 
+import Data.Map (Map)
 import Data.Maybe
 import Data.Typeable (Typeable)
 import Data.Text.Prettyprint.Doc
@@ -16,6 +17,15 @@ import Unbound.Generics.LocallyNameless
 import Unbound.Generics.LocallyNameless.Internal.Fold (Fold, toListOf)
 
 import qualified Language.Alonzo.Transform.NameBind as B
+
+--------------------------------------------------------------------------------------------------
+-- Term Definition
+
+data Closure = Closure (Bind (Rec [(Var, Embed Term)]) [Term])
+  deriving(Show, Generic, Typeable)
+
+--------------------------------------------------------------------------------------------------
+-- Term Definition
 
 type Var = Name Val
 
@@ -76,8 +86,11 @@ free t =
 --            x2 = h y
 --        in  f x1 x2
 
-normalize :: B.Term -> Term
-normalize = runFreshM . anf
+normalize :: B.Closure -> Closure
+normalize = runFreshM . anfClosure
+
+anfClosure :: B.Closure -> FreshM Closure
+anfClosure cl = undefined
 
 anf :: B.Term -> FreshM Term
 anf = \case

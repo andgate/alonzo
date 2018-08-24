@@ -35,7 +35,7 @@ library
     , either
     , exceptions
     , extra
-    , lens
+    , hashmap
     , mtl
     , prettyprinter
     , prettyprinter-ansi-terminal
@@ -92,11 +92,10 @@ executable alci
     , extra
     , language-alonzo
     , lens
+    , hashmap
     , monad-loops
     , mtl
     , prettyprinter
+    , repline
     , text
     , transformers
-  
-  other-modules:
-    Language.Alonzo.Repl.Error

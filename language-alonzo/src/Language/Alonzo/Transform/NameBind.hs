@@ -29,17 +29,21 @@ import Unbound.Generics.LocallyNameless.Internal.Fold (Fold, toListOf)
 import Language.Alonzo.Syntax.Location
 import Language.Alonzo.Syntax.Prim
 
+import qualified Data.Map.Strict                as Map
 import qualified Data.List.NonEmpty             as NE
 import qualified Data.Set                       as Set
 import qualified Language.Alonzo.Syntax.Source  as S
 
 
 --------------------------------------------------------------------------------------------------
--- Term Definition
+-- Name Bound Closure
 
-
-data Fun = Fun String Term
+data Closure = Closure (Bind (Rec [(Var, Embed Term)]) [Term])
   deriving(Show, Generic, Typeable)
+
+
+--------------------------------------------------------------------------------------------------
+-- Term Definition
 
 type Var = Name Term
 
@@ -159,34 +163,42 @@ prettyFresh = \case
 
 
 ------------------------------------------------------------------------------------------------------
--- Instances Required for unbound-generics
+-- Name Binding
 
-namebind :: S.Term -> Term
-namebind = \case
-  S.TVar n    -> tvar $ unpack n
+namebind :: S.Closure -> Closure
+namebind (S.Closure ps ts) = Closure $ bind (rec ps') ts'
+  where
+    ts' = namebindTerm <$> ts
+    ps' = [ (string2Name (unpack n), embed (namebindTerm t))
+          | (S.Program (n, _) t) <- ps 
+          ]
+
+namebindTerm :: S.Term -> Term
+namebindTerm = \case
+  S.TVar (n, _) -> tvar $ unpack n
 
   S.TVal v    -> TVal v
   
-  S.TPrim i t1 t2 -> TPrim i (namebind t1) (namebind t2)
+  S.TPrim i t1 t2 -> TPrim i (namebindTerm t1) (namebindTerm t2)
 
   S.TApp f as -> 
-    tapps (namebind f) (namebind <$> NE.toList as)
+    tapps (namebindTerm f) (namebindTerm <$> NE.toList as)
 
   S.TLam vs body ->
-    let vs' = unpack <$> NE.toList vs
-        body' = namebind body
+    let vs' = unpack . fst <$> NE.toList vs
+        body' = namebindTerm body
     in tlam vs' body'
 
   S.TLet fns body ->
-    tlet (renameFuns $ NE.toList fns) (namebind body)
+    tlet (renameFuns $ NE.toList fns) (namebindTerm body)
 
-  S.TLoc l t   -> TLoc l (namebind t)
-  S.TParens t  -> namebind t
+  S.TLoc l t   -> TLoc l (namebindTerm t)
+  S.TParens t  -> namebindTerm t
   S.TWild      -> TWild
 
 
-renameFuns :: [(Text, S.Term)] -> [(String, Term)]
+renameFuns :: [((Text, Loc), S.Term)] -> [(String, Term)]
 renameFuns = map renameFun 
 
-renameFun :: (Text, S.Term) -> (String, Term)
-renameFun (n, t) = (unpack n, namebind t)
+renameFun :: ((Text, Loc), S.Term) -> (String, Term)
+renameFun ((n, _), t) = (unpack n, namebindTerm t)

@@ -2,6 +2,7 @@
            , GeneralizedNewtypeDeriving
            , OverloadedStrings
            , LambdaCase
+           , FlexibleContexts
   #-}
 module Main where
 
@@ -18,105 +19,292 @@ import Data.Bitraversable
 import Data.Either
 import Data.Either.Extra (eitherToMaybe)
 import Data.Map.Strict (Map)
+import Data.Monoid
+import Data.Set (Set)
 import Data.Text (Text, pack, unpack)
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
 import Language.Alonzo.Analysis
-import Language.Alonzo.Analysis.NameCheck (namecheck, NameError(..))
 import Language.Alonzo.Analysis.Error
-import Language.Alonzo.Repl.Error
 import Language.Alonzo.Lex.Error
-import Language.Alonzo.Parse
 import Language.Alonzo.Parse.Error
 import Language.Alonzo.Syntax.Location
 import Language.Alonzo.Transform
-import Language.Alonzo.Transform.Reduce (reduce, Closure)
+import Language.Alonzo.Transform.Reduce (reduce)
 import System.IO (hFlush, stdout)
+import System.Exit
+import System.Console.Repline
 
-import qualified Data.List as List
-import qualified Data.Set as Set
+import qualified Data.List       as List
 import qualified Data.Map.Strict as Map
-import qualified Language.Alonzo.Syntax.Source      as S
-import qualified Language.Alonzo.Transform.NameBind as B
+import qualified Data.Set        as Set
+
+import qualified Language.Alonzo.Parse              as P
 import qualified Language.Alonzo.Transform.ANorm    as A
+import qualified Language.Alonzo.Transform.NameBind as B
+import qualified Language.Alonzo.Analysis.NameCheck as N
+import qualified Language.Alonzo.Syntax.Source      as S
 
 import qualified Data.Text.IO as T
+
+-- Maybe delete this?
+data ReplError
+  = ReplParseErr
+  | ReplAnalysisErr
+  | ReplReductionErr
+  | ReplFileLoadErr FilePath
+  | ReplSeriousErr Text -- Rly srs
+
+
+instance Pretty ReplError where
+    pretty = \case
+        ReplParseErr    -> "Repl aborted."
+        ReplAnalysisErr -> "Repl aborted."
+        ReplAnalysisErr -> "Repl aborted."
+        ReplFileLoadErr fp -> pretty fp <+> ": Failed to load."
+        ReplSeriousErr err -> pretty err
 
 
 data ReplState
   = ReplState
-    { _replQuit :: Bool
-    , _replMod :: Text
-    , _replClosure :: Map Text A.Term
-    , _replHistory :: [String]
+    { _replDict     :: Map Text Loc
+    , _replFiles    :: Map FilePath S.Closure
+    , _replPrograms :: Map Text A.Term
     }
+
 
 makeLenses ''ReplState
 
-initialReplState :: ReplState
-initialReplState =
-  ReplState
-    { _replQuit = False
-    , _replMod = "repl"
-    , _replClosure = Map.empty
-    , _replHistory = []
+instance Semigroup ReplState where
+  (<>) _ _ = error "i don't want this"
+
+
+instance Monoid ReplState where
+  mempty =
+    ReplState
+    { _replDict = mempty
+    , _replFiles = mempty
+    , _replPrograms = mempty
     }
 
-
-
-newtype Repl a = Repl { unRepl :: StateT ReplState (ExceptT ReplError IO) a }
-  deriving (Functor, Applicative, Monad, MonadState ReplState, MonadError ReplError, MonadIO)
-
-runRepl :: Repl a -> IO a
-runRepl m = do
-  r <- runExceptT $ evalStateT (unRepl m) initialReplState
-  case r of
-    Left err -> do -- Don't end up here!!
-      putDoc $ pretty err
-      error "Severe error encountered. Repl aborted."
-
-    Right a  -> return a
-
 main :: IO ()
-main = runRepl (loadPrelude >> repl)
+main = repl
 
-repl :: Repl ()
-repl = untilM_ handleProcess (use replQuit)
+------------------------------------------------------------------------
+-- Read-Evaluate-Print-Loop
 
-printDecoration :: Repl ()
-printDecoration = do
-  dstr <- _replMod <$> get
-  liftIO $ do
-    T.putStr dstr
-    T.putStr " > "
-    hFlush stdout
+type Repl a = HaskelineT (StateT ReplState IO) a
+
+repl :: IO ()
+repl = flip evalStateT mempty
+     $ evalRepl ">>> " cmd opts (Word comp) enter
+
+-- Start-up
+enter :: Repl ()
+enter = do
+  loadPrelude
+  liftIO $ putStrLn "Hello!"
+
+-- Evalution
+cmd :: String -> Repl ()
+cmd input = do
+  cl <- S.closure <$> parseText "" (pack input)
+  --printPretty cl
+  -- Validate programs and terms
+  checkClosure cl
+  -- Store programs
+  -- evalute terms
+
+{-
+  case s of
+    S.Program n t -> saveProgram n t
+    S.ExecTerm t  -> evalTerm t >>= printPretty
+-}
+
+
+
+-- Completion
+comp :: (Monad m, MonadState ReplState m) => WordCompleter m
+comp n = do
+  ns <- use replDict
+  return $ List.filter (List.isPrefixOf n) (unpack <$> Map.keys ns)
+
+
+-- Commands
+quitRepl :: [String] -> Repl ()
+quitRepl _ = liftIO $ exitWith ExitSuccess
+
+opts :: [(String, [String] -> Repl ())]
+opts = [
+    ("load", loadFiles) -- :load <files>
+  , ("quit", quitRepl) -- :quit
+  ]
+
+
+------------------------------------------------------------------------
+-- Parsing
+
+parseFiles :: [(FilePath, Text)] -> Repl [[S.Stmt]]
+parseFiles fs = do
+  case P.parseFiles fs of
+    ([], ss) -> return ss
+    (es, _)  -> do
+      printPretties es
+      abort
+
+parseText :: FilePath -> Text -> Repl [S.Stmt]
+parseText fp src = do
+  case P.parseText fp src of
+    ([], ss) -> return ss
+    (es, _)  -> do
+      printPretty es
+      abort
+
+
+------------------------------------------------------------------------
+-- Files
+
+loadFiles :: [FilePath] -> Repl ()
+loadFiles [] = liftIO $ print "No files given."
+loadFiles paths = do
+  srcs <- liftIO $ traverse T.readFile paths
+  ss <- parseFiles $ zip paths srcs
+  let cs = S.closure <$> ss
+      loaded = zip paths cs
+      c@(S.Closure ps ts) = mconcat cs
+  checkClosure c
+
+  storeClosures $ zip paths cs
+
+  reduceTerms ts
+
+
+
+------------------------------------------------------------------------
+-- Checking
+
+checkClosure :: S.Closure -> Repl ()
+checkClosure c = do
+  d <- replDictWith c
+  checkNameConflicts d
+  checkNames (Map.fromList d) c
+
+
+replDictWith :: S.Closure -> Repl [(Text, Loc)]
+replDictWith (S.Closure ps ts) = do
+  d <- Map.toList <$> use replDict
+  return $ d ++ map S._progName ps
+
+
+checkNameConflicts :: [(Text, Loc)] -> Repl ()
+checkNameConflicts ns =
+  case N.checkConflicts ns of
+    [] -> return ()
+    ers -> do
+      printPretties ers
+      abort
+
+
+checkNames :: Map Text Loc -> S.Closure -> Repl ()
+checkNames d (S.Closure ps ts) = do
+  let ts' = map S._progTerm ps ++ ts
+      ers = N.namecheckTerms d ts'
+  case ers of
+    [] -> return ()
+    _ -> do
+      printPretties ers
+      abort
+
+
+------------------------------------------------------------------------
+-- Program Storage
+
+storeClosures :: [(FilePath, S.Closure)] -> Repl ()
+storeClosures cls = do
+  let (S.Closure ps _) = mconcat . map snd $ cls
+      ps' = [(n, transformTerm t) | (S.Program (n, _) t) <- ps]
+
+  replDict %= Map.union (Map.fromList $ S._progName <$> ps)
+  replFiles %= Map.union (Map.fromList cls)
+  replPrograms %= Map.union (Map.fromList ps')
+
+
+
+------------------------------------------------------------------------
+-- Term Transformation
+
+transformTerm :: S.Term -> A.Term 
+transformTerm t = undefined
+
+------------------------------------------------------------------------
+-- Term Reduction
+
+reduceTerms :: [A.Term] -> Repl ()
+reduceTerms ts = undefined
+
+      
+
+------------------------------------------------------------------------
+-- Helpers
+
+loadPrelude :: Repl ()
+loadPrelude = loadFiles ["prelude/Prelude.al"]
+
+
+printPretty :: Pretty p => p -> Repl ()
+printPretty p =
+  liftIO $ putDoc (pretty p) >> putStr "\n"
+
+printPretties :: Pretty p => [p] -> Repl ()
+printPretties ps =
+  liftIO $ putDoc (vsep $ pretty <$> ps) >> putStr "\n"
+
+
+{-
+loopRepl :: Repl ()
+loopRepl = do
+  minput <- getInputLine "repl > "
+  case minput of
+      Nothing        -> return () -- probably a serious error
+      Just ":quit"   -> return ()
+      Just (':':cmd) -> handleCmd cmd >> loopRepl
+      Just input     -> evalString    >> loopRepl
+
+
+
+
 
 handleProcess :: Repl ()
 handleProcess = catchError process handle
   where handle = \case
           ReplParseErr     -> return ()
           ReplAnalysisErr  -> return ()
+          ReplReductionErr -> return ()
           ReplSeriousErr e -> throwError $ ReplSeriousErr e
 
-process :: Repl ()
-process = do
-  printDecoration
-  srctxt <- liftIO T.getLine
-  parse' srctxt >>= \t -> case t of 
-    S.TermDecl t  -> evalTerm t >>= printPretty
-    S.FunDecl n t -> saveDef n t
-  liftIO (putStr "\n")
-
-parse' :: Text -> Repl S.Decl
-parse' src = case parseDecl "repl" src of
-  Right t -> return t
-  Left e  -> do
-    printPretty e
-    throwError ReplParseErr
 
 
-saveDef :: Text -> S.Term -> Repl ()
-saveDef n t = do
+
+
+checkStmt :: S.Stmt -> Repl ()
+checkStmt st = do
+  ns <- (Map.keys . _replClosure) <$> get
+  case st of
+    S.Program n t -> namecheck' (n:ns) t
+    S.ExecTerm t -> namecheck' ns t
+
+namecheck' :: [Text] -> S.Term -> Repl S.Term
+namecheck' ns t =
+  case namecheck (Set.fromList ns) (S.locOf t) t of
+    [] -> return t
+    es -> do
+      let errMsg = vcat (pretty <$> es) 
+      liftIO $ putDoc errMsg >> T.putStr "\n"
+      throwError ReplAnalysisErr
+
+
+saveProgram :: Text -> S.Term -> Repl ()
+saveProgram n t = do
   ns <- uses replClosure Map.keys
   t' <- transform' =<< namecheck' (n:ns) t
   replClosure %= Map.insert n t'
@@ -126,19 +314,14 @@ evalTerm :: S.Term -> Repl A.Val
 evalTerm t = do
   cl <- (Map.keys . _replClosure) <$> get
   namecheck' cl t >>= transform' >>= reduce'
-  
 
-
-printPretty :: Pretty p => p -> Repl ()
-printPretty p =
-  liftIO $ putDoc (pretty p) >> putStr "\n"
 
 
 transform' :: S.Term -> Repl A.Term
 transform' t = do 
   liftIO $ putStr "Source:"
   printPretty t
-  return $ transform t
+  return $ transformANorm t
 
 reduce' :: A.Term -> Repl A.Val
 reduce' t = do
@@ -148,17 +331,12 @@ reduce' t = do
   return $ reduce cl t
   
 
-namecheck' :: [Text] -> S.Term -> Repl S.Term
-namecheck' ns t = case namecheck (Set.fromList ns) (S.locOf t) t of
-  [] -> return t
-  es -> do
-    let errMsg = vcat (pretty <$> es) 
-    liftIO $ putDoc errMsg >> T.putStr "\n"
-    throwError ReplAnalysisErr
+
 
 
 loadPrelude :: Repl ()
 loadPrelude = loadFile "prelude/Prelude.al"
+
 
 loadFile :: FilePath -> Repl ()
 loadFile fp = (loadFile' fp) `catchError` handle
@@ -166,24 +344,26 @@ loadFile fp = (loadFile' fp) `catchError` handle
     handle (ReplSeriousErr msg) = error (unpack msg)
     handle e = liftIO . putDoc . pretty $ e
 
+
 loadFile' :: FilePath -> Repl ()
 loadFile' fp = do
   src <- liftIO $ T.readFile fp
   case parseFile fp src of
     Left e   -> fileParseFail fp e
     Right ds -> do
-      buildFile fp ds
+      cl <- buildFile fp ds
       liftIO $ putStr ("Loaded: " ++ fp ++ "\n")
 
-buildFile :: FilePath -> [S.Decl] -> Repl ()
-buildFile fp ds = do
-  let ps@(cl, ts) = S.programs ds
+
+buildFile :: FilePath -> [S.Stmt] -> Repl A.Closure
+buildFile fp ss = do
+  let ps@(cl, ts) = S.closure ss
   -- checkPrograms fp ps
   installPrograms cl
   runPrograms ts
 
 
-checkPrograms :: FilePath -> S.Programs -> Repl ()
+checkPrograms :: FilePath -> S.Closure -> Repl ()
 checkPrograms fp ps@(cl, ts) = do
   detectClosureConflict fp cl
   replCl <- use replClosure
@@ -202,24 +382,12 @@ installPrograms cl = do
   replClosure %= Map.union cl'
 
   mapM_ (installed . unpack) ns
-  
-  
 
 
 runPrograms :: [S.Term] -> Repl ()
 runPrograms ts =
   -- TODO: Run programs specified in prelude
   return ()
-
-
-
-detectClosureConflict :: FilePath -> S.Closure -> Repl ()
-detectClosureConflict fp cl = do
-  nsRepl <- Map.keys <$> use replClosure
-  case Map.keys cl `List.intersect` nsRepl of
-    [] -> return ()
-    ns -> closureConflict fp ns -- print error, throw exception
-
 
 
 nameErrors :: FilePath -> [NameError] -> Repl ()
@@ -250,3 +418,20 @@ fileParseFail fp e =
 
 installed :: String -> Repl ()
 installed n = liftIO $ putStr ("Installed: " ++ n ++ "\n")
+
+
+mergeClosures :: S.Closure -> S.Closure -> Repl S.Closure
+mergeClosures cl1 cl2 = undefined
+  -- Check name conflicts
+  -- Merge
+  -- Check undefined names
+  -- return validated, merged closure
+
+
+detectClosureConflict :: FilePath -> S.Closure -> Repl ()
+detectClosureConflict fp cl = do
+  nsRepl <- Map.keys <$> use replClosure
+  case Map.keys cl `List.intersect` nsRepl of
+    [] -> return ()
+    ns -> closureConflict fp ns -- print error, throw exception
+-}

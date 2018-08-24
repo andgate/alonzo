@@ -1,4 +1,5 @@
--- "types"
+-- Types as functions
+-- Good luck checking these!
 int = \i f. f i
 bool = \p f. f p
 string = \s f. f s
@@ -8,6 +9,12 @@ array = \a f. f a
 -- In general, we can embed terms
 embed = \a f . f a
 
+
+-- Self application
+omega = \x. x x
+
+-- Loop, infinitely self applied
+Omega = omega omega
 
 -- Category
 category = \id comp. 
@@ -33,7 +40,7 @@ from = \e. e false
 
 -- Isomorphism for functions
 
-fnIso = \f g. isomorpism f g
+fnIso = \f g. isomorphism f g
 
 -- Adjunction
 
@@ -47,15 +54,15 @@ rightAdjunct = \e. e (\f u c l r. r)
 
 unitDef         = \a. leftAdjunct (id fnCategory) a
 counitDef       = \fa. rightAdjunct (id fnCategory) fa
-leftAdjunctDef  = \f a. fmap (adjunctionFunctor e) f (unit e a)
-rightAdjunctDef = \f fa. counit (fmap (adjunctionFunctor e) f fa)
+--leftAdjunctDef  = \f a e. fmap (adjunctionFunctor e) f (unit e a)
+--rightAdjunctDef = \f fa e. counit (fmap (adjunctionFunctor e) f fa)
 
 -- Adjuction between Pair and function
 
-funLeftAdj = \f. id fnCategory (f (id fnCategory x))
-funLeftAdj = \f. id fnCategory (f (id fnCategory x))
+--funLeftAdj = \f. id fnCategory (f (id fnCategory x))
+--funLeftAdj = \f. id fnCategory (f (id fnCategory x))
 
-functionAdjunction = adjunction functionFunctor (unitDef functionAdjunction) (counitDef functionAdjunction) funLeftAdj funRightAdj
+--functionAdjunction = adjunction functionFunctor (unitDef functionAdjunction) (counitDef functionAdjunction) funLeftAdj funRightAdj
 
 -- Monoid
 monoid = λempty append. pair empty append
@@ -98,9 +105,9 @@ pair  = λx y p. p x y
 fst   = λp. p true
 snd   = λp. p false
 
-swap  = λp. pair (second p) (first p)
+swap  = λp. pair (snd p) (fst p)
 
-bimapPair = λf g p. pair (f (first p)) (g (second p))
+bimapPair = λf g p. pair (f (fst p)) (g (snd p))
 pairBifunctor = bifunctor bimapPair
 
 
@@ -116,7 +123,7 @@ just    = λx n j. j x
 maybe = λd f mb. mb d f
 isNothing = λmb. mb true (const false)
 isJust    = λmb. mb false (const true)
-fromJust  = λmb. mb (error "fromJust encountered Nothing") (idFn)
+fromJust  = λmb. mb _ (idFn)
 
 -- Maybe functor
 mapMaybe = λf mb. mb nothing (\x. just (f x))
@@ -126,7 +133,7 @@ maybeFunctor = mapMaybe
 bindMaybe = λmb f. mb nothing f
 returnMaybe = just
 
-maybeMonad = tuple bindMaybe returnMaybe
+maybeMonad = pair bindMaybe returnMaybe
 
 
 -- Lists!
