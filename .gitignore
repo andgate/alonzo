@@ -1,6 +1,4 @@
-*~
-\#*\#
-.\#*
+# Haskell Stack and Cabal
 hk.db
 /.stack-work/
 **dist-newstyle
@@ -8,3 +6,13 @@ hk.db
 /*.hpc
 /.hkc
 TAGS
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*

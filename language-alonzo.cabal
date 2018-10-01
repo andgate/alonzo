@@ -1,0 +1,102 @@
+name:           language-alonzo
+version:        0.0.0
+synopsis:       Alonzo Compiler
+description:    Alonzo is a purely functional untyped programming language
+category:       Compilers
+homepage:       https://github.com/andgate/alonzo
+bug-reports:    https://github.com/andgate/alonzo/issues
+maintainer:     Gabriel Anderson
+license:        MIT
+build-type:     Simple
+cabal-version:  >= 2.0
+
+extra-source-files:
+    src/Language/Alonzo/Lex.x
+    src/Language/Alonzo/Parse.y
+
+source-repository head
+  type: git
+  location: https://github.com/andgate/alonzo
+
+library
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -fno-warn-name-shadowing -fno-warn-unused-binds -fno-warn-unused-matches -fno-warn-unused-do-bind -fno-warn-orphans
+  build-depends:
+      Earley
+    , array
+    , aeson
+    , base
+    , binary
+    , containers
+    , lens
+    , ListZipper
+    , directory
+    , filepath
+    , either
+    , exceptions
+    , extra
+    , hashmap
+    , megaparsec
+    , mtl
+    , prettyprinter
+    , prettyprinter-ansi-terminal
+    , safe
+    , semigroups
+    , temporary
+    , text
+    , unbound-generics
+    , unordered-containers
+    , vector
+
+  build-tools:
+      alex ==3.2.4, happy==1.19.9
+  exposed-modules:
+      Language.Alonzo.Analysis
+      Language.Alonzo.Analysis.Error
+      Language.Alonzo.Analysis.Infer
+      Language.Alonzo.Analysis.NameCheck
+
+      Language.Alonzo.Lex
+      Language.Alonzo.Lex.Error
+      Language.Alonzo.Lex.Lines
+      Language.Alonzo.Lex.Offside
+      Language.Alonzo.Lex.State
+      Language.Alonzo.Lex.Token
+
+      Language.Alonzo.Parse
+
+      Language.Alonzo.Syntax.Location
+      Language.Alonzo.Syntax.Prim
+      Language.Alonzo.Syntax.Source
+
+      Language.Alonzo.Transform.Abstract
+      Language.Alonzo.Transform.ANF
+      Language.Alonzo.Transform.CConv
+      Language.Alonzo.Transform.Lift
+      Language.Alonzo.Transform.Reduce
+      Language.Alonzo.Transform.WHNF
+  
+  other-modules:
+  default-language: Haskell2010
+
+executable alci
+  main-is: Main.hs
+  ghc-options: -Wall -O2 -Wincomplete-uni-patterns -Wincomplete-record-updates -fno-warn-name-shadowing -fno-warn-unused-binds -fno-warn-unused-matches -fno-warn-unused-do-bind -fno-warn-orphans -rtsopts -threaded -with-rtsopts=-N -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wmissing-import-lists
+  default-language: Haskell2010
+  hs-source-dirs:
+      alci
+  build-depends:
+      base
+    , bifunctors
+    , containers
+    , extra
+    , language-alonzo
+    , lens
+    , hashmap
+    , monad-loops
+    , mtl
+    , prettyprinter
+    , repline
+    , text
+    , transformers

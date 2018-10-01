@@ -3,15 +3,15 @@
 int = \i f. f i
 bool = \p f. f p
 string = \s f. f s
-char = \c f. f c
+char = λc f. f c
 array = \a f. f a
 
 -- In general, we can embed terms
-embed = \a f . f a
+embed = λa f . f a
 
 
 -- Self application
-omega = \x. x x
+omega = λx. x x
 
 -- Loop, infinitely self applied
 Omega = omega omega
@@ -23,7 +23,7 @@ category = \id comp.
 id      = λe. e (λid comp . id)
 compose = λe. e (λid comp . comp)
 
-const   = \a b . a
+const   = λa b . a
 
 -- Category for function
 idFn = λx. x
