@@ -27,7 +27,7 @@ import Data.Monoid
 import Data.Semigroup
 
 import Language.Alonzo.Syntax.Location as X
-import Language.Alonzo.Syntax.Prim as X
+import Language.Alonzo.Syntax.Builtin as X
 
 import qualified Data.Map.Strict     as Map
 import qualified Data.Text           as T
@@ -55,15 +55,15 @@ data QName
 
 
 mkName :: L Text -> Name
-mkName (n, l) =
+mkName (L l n) =
   Name { nameText = n, nameLoc = l }
 
 
 mkQName :: L Text -> QName
-mkQName (n, l) = case T.splitOn "." n of
+mkQName (L l n) = case T.splitOn "." n of
   []     -> error "Empty name encountered"
   (n:[]) -> QName { qnameText = n, qnamePath = [], qnameLoc = l }
-  ns     -> QName { qnameText = last n, qnamePath = init n, qnameLoc = l }
+  ns     -> QName { qnameText = last ns, qnamePath = init ns, qnameLoc = l }
 
 
 -- -----------------------------------------------------------------------------
@@ -74,7 +74,7 @@ data Module
     { modName    :: QName
     , modImports :: [QName]
     , modData    :: [DataDef]
-    , modFns     :: [Term]
+    , modFns     :: [Func]
     }
 
 
@@ -87,7 +87,7 @@ data Func
          }
 
 data Clause =
-  Clause [Pat] Term 
+  Clause [Pat] Term
 
 
 -- -----------------------------------------------------------------------------
@@ -96,14 +96,33 @@ data Clause =
 data Stmt
   = SImport QName
   | SFunc Func
-  | STerm Term
   | SData DataDef
 
 
+imports :: [Stmt] -> [QName]
+imports = foldr go []
+  where go (SImport n) is = (n:is)
+        go  _          is = is
+
+funcs :: [Stmt] -> [Func]
+funcs = foldr go []
+  where go (SFunc n) fns = (n:fns)
+        go _         fns = fns
+
+datas :: [Stmt] -> [DataDef]
+datas = foldr go []
+  where go (SData n) ds = (n:ds)
+        go _         ds = ds
+
+
+
 mkModule :: QName -> [Stmt] -> Module
-mkModule =
-  where
-    mod = Module { modName = }
+mkModule n ss =
+  Module { modName    = n
+         , modImports = imports ss
+         , modData    = datas ss
+         , modFns     = funcs ss
+         }
 
 -- -----------------------------------------------------------------------------
 -- | Data Definition
@@ -119,7 +138,7 @@ data Term
   -- x
   = TVar  (Text, Loc)
   -- integers, floats, characters, booleans, etc.
-  | TVal  PrimVal
+  | TVal  Val
 
   -- f a
   | TApp   Term (NonEmpty Term)
@@ -150,7 +169,7 @@ data Term
 
 data Pat
   = PVar Name
-  | PVal PrimVal
+  | PVal Val
   | PCon Name [Pat]
   | PAs Name Pat
   | PParens Pat
@@ -184,7 +203,7 @@ instance Pretty Name where
 
 instance Pretty QName where
   pretty QName{..} =
-    mconcat $ punctuate dot (pretty <$> NE.toList qnameText)
+    mconcat $ punctuate dot (pretty <$> qnamePath ++ [qnameText])
 
 instance Pretty Module where
   pretty Module{..} =
@@ -204,10 +223,8 @@ instance Pretty Clause where
 
 instance Pretty Stmt where
   pretty = \case
-    SMod qn    -> "module" <+> pretty qn
     SImport qn -> "import" <+> pretty qn
     SFunc fn   -> pretty fn
-    STerm t    -> pretty t
     SData d    -> pretty d
     
 

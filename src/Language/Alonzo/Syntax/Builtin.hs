@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, DeriveGeneric, DeriveDataTypeable, LambdaCase #-}
-module Language.Alonzo.Syntax.Prim where
+module Language.Alonzo.Syntax.Builtin where
 
 import Data.Aeson
 import Data.Binary
@@ -7,7 +7,6 @@ import Data.Data
 import Data.Text (Text, pack)
 import Data.Text.Prettyprint.Doc
 import GHC.Generics (Generic)
-import Language.Alonzo.Syntax.Loc
 
 
 -- -----------------------------------------------------------------------------
@@ -17,12 +16,11 @@ data Val
   = VInt Integer
   | VFloat Double
   | VChar Char
-  | VBool Bool
   | VString String
+  | VBool Bool
   deriving (Read, Show, Eq, Ord, Data, Typeable, Generic)
 
 
--- Hawk talon's are dug firmly into LLVM's instruction set.
 data PrimInstr
   = PrimAdd
   | PrimFAdd
@@ -75,7 +73,7 @@ floatInstrs =
 -- Pretty ---------------------------------------------------------------------
 
 
-instance Pretty Value where
+instance Pretty Val where
   pretty = \case
     VInt v ->
       pretty v
@@ -87,6 +85,9 @@ instance Pretty Value where
       squotes $ pretty c
 
     VString v ->
+      pretty v
+
+    VBool v ->
       pretty v
 
 
@@ -135,7 +136,7 @@ readPrimInstr = \case
 
 
 
-evalInstr :: (PrimInstr, Val, Val) -> PrimVal
+evalInstr :: (PrimInstr, Val, Val) -> Val
 evalInstr = \case
   (PrimAdd, VInt x, VInt y) -> VInt (x + y)
   (PrimFAdd, VFloat x, VFloat y) -> VFloat (x + y)

@@ -108,6 +108,7 @@ hawk :-
 
   "let"                           { rsvp }
   "in"                            { rsvp }
+  "where"                         { rsvp }
 
   "module"                        { rsvp }
   "import"                        { rsvp }

@@ -1,35 +1,36 @@
 {
 
-{-# LANGUAGE OverloadedString #-}
-module Language.Alonzo.Parser where
+{-# LANGUAGE OverloadedStrings #-}
+module Language.Alonzo.Parse where
 
-import Language.Alonzo.Lexer
+import Language.Alonzo.Lex
 import Language.Alonzo.Lex.Token
 import Language.Alonzo.Syntax.Source
 import Language.Alonzo.Syntax.Builtin
-import Language.Alonzo.Syntax.Loc
+import Language.Alonzo.Syntax.Location
 
 }
 
-%name alonzoExp
+%name alonzoFile
 %tokentype { Token }
 %error { parseError }
 
 
 %token
   backslash          { Token (TokenRsvp "\\") _ $$ }
+  colon              { Token (TokenRsvp ":") _ $$ }
+  comma              { Token (TokenRsvp ",") _ $$ }
+  equals             { Token (TokenRsvp "=") _ $$ }
   lambda             { Token (TokenRsvp "λ") _ $$ }
   period             { Token (TokenRsvp ".") _ $$ }
-  comma              { Token (TokenRsvp ",") _ $$ }
+  underscore         { Token (TokenRsvp "_") _ $$ }
+
   openParen          { Token (TokenRsvp "(") _ $$ }
   closeParen         { Token (TokenRsvp ")") _ $$ }
   openBracket        { Token (TokenRsvp "[") _ $$ }
   closeBracket       { Token (TokenRsvp "]") _ $$ }
   openCurly          { Token (TokenRsvp "{") _ $$ }
   closeCurly         { Token (TokenRsvp "}") _ $$ }
-  equals             { Token (TokenRsvp "=") _ $$ }
-  underscore         { Token (TokenRsvp "_") _ $$ }
-  colon              { Token (TokenRsvp ":") _ $$ }
 
   sub                { Token (TokenRsvp ":>") _ $$ }
   super              { Token (TokenRsvp "<:") _ $$ }
@@ -40,16 +41,15 @@ import Language.Alonzo.Syntax.Loc
 
   let                { Token (TokenRsvp "let")  _ $$ }
   in                 { Token (TokenRsvp "in")   _ $$ }
+  where              { Token (TokenRsvp "where") _ $$ }
 
   varId              { Token (TokenVarId  _) _ _ }
   conId              { Token (TokenConId  _) _ _ }
   qvarId             { Token (TokenQVarId _) _ _ }
-  qvarId             { Token (TokenQConId _) _ _ }
-
+  qconId             { Token (TokenQConId _) _ _ }
 
   primAdd            { Token (TokenPrimId "#add") _ $$ }
   primSub            { Token (TokenPrimId "#sub") _ $$ }
-
 
   integer            { Token (TokenInteger _) _ _ }
   double             { Token (TokenDouble  _) _ _ }
@@ -65,30 +65,34 @@ import Language.Alonzo.Syntax.Loc
 
 %%
 
-Module : blockOpen ModuleDecl Statements blockClose { mkModule $2 $3 }
+Module : blockOpen ModDecl Stmts0 blockClose { mkModule $2 $3 }
 
-ModuleDecl : lineOpen module ModuleName lineClose { $3 }
+ModDecl : lineOpen module ModName lineClose { $3 }
 
-ModuleName : conId        { mkQname (extractId $1) }
-           | qconId       { mkQName (extractId $1) }
+ModName : conId        { mkQName (extractId $1) }
+        | qconId       { mkQName (extractId $1) }
 
-Value : integer  { VInt    <$> (extractInteger $1) }
-      | double   { VFloat  <$> (extractDouble  $1) }
-      | char     { VChar   <$> (extractChar    $1) }
-      | string   { VString <$> (extractString  $1) }
-      | boolean  { VBool   <$> (extractBool    $1) }
+Value : integer  { fmap VInt    (extractInteger $1) }
+      | double   { fmap VFloat  (extractDouble  $1) }
+      | char     { fmap VChar   (extractChar    $1) }
+      | string   { fmap VString (extractString  $1) }
+      | boolean  { fmap VBool   (extractBool    $1) }
 
 
-Exp : let var '=' Exp in Exp { Let $2 $4 $6 }
-    | Exp '+' Exp            { Plus $1 $3 }
-    | Exp '-' Exp            { Minus $1 $3 }
-    | Exp '*' Exp            { Times $1 $3 }
-    | Exp '/' Exp            { Div $1 $3 }
-    | '(' Exp ')'            { $2 }
-    | '-' Exp %prec NEG      { Negate $2 }
-    | int                    { Int $1 }
-    | var { Var $1 }
 
+StmtBlock : blockOpen Stmts blockClose { $2 }
+
+Stmts : StmtLn       { [$1] }
+      | Stmts StmtLn { $2 : $1 }
+
+Stmts0 : {- empty -} { [] }
+       | Stmts       { $1 }
+
+StmtLn : lineOpen Stmt lineClose { $2 }
+
+Stmt : Import { SImport $1 }
+
+Import : import ModName { $2 }
 
 {
 parseError :: [Token] -> a

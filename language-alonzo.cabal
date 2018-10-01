@@ -67,7 +67,7 @@ library
       Language.Alonzo.Parse
 
       Language.Alonzo.Syntax.Location
-      Language.Alonzo.Syntax.Prim
+      Language.Alonzo.Syntax.Builtin
       Language.Alonzo.Syntax.Source
 
       Language.Alonzo.Transform.Abstract
