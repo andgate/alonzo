@@ -3,6 +3,7 @@
            , OverloadedStrings
            , LambdaCase
            , FlexibleContexts
+           , RecordWildCards
   #-}
 module Main where
 
@@ -27,7 +28,7 @@ import Data.Text.Prettyprint.Doc.Render.Text
 import Language.Alonzo.Analysis
 import Language.Alonzo.Analysis.Error
 import Language.Alonzo.Lex.Error
-import Language.Alonzo.Parse.Error
+--import Language.Alonzo.Parse.Error
 import Language.Alonzo.Syntax.Location
 import Language.Alonzo.Transform.Reduce (reduce)
 import System.IO (hFlush, stdout)
@@ -67,8 +68,8 @@ instance Pretty ReplError where
 data ReplState
   = ReplState
     { _replDict     :: Map Text Loc
-    , _replFiles    :: Map FilePath S.Closure
-    , _replPrograms :: Map Text Anf.Term
+    , _replSrcMods  :: Map FilePath S.Module
+    , _replMods     :: Map Text Anf.Term
     }
 
 
@@ -82,8 +83,8 @@ instance Monoid ReplState where
   mempty =
     ReplState
     { _replDict = mempty
-    , _replFiles = mempty
-    , _replPrograms = mempty
+    , _replSrcMods = mempty
+    , _replMods = mempty
     }
 
 main :: IO ()
@@ -101,16 +102,17 @@ repl = flip evalStateT mempty
 -- Start-up
 enter :: Repl ()
 enter = do
-  loadPrelude
+  --loadPrelude
   liftIO $ putStrLn "Hello!"
 
 -- Evalution
 cmd :: String -> Repl ()
 cmd input = do
-  cl <- S.closure <$> parseText "" (pack input)
+  liftIO $ print input 
+ -- cl <- S.closure <$> parseText "" (pack input)
   --printPretty cl
   -- Validate programs and terms
-  checkClosure cl
+  --checkClosure cl
   -- Store programs
   -- evalute terms
 
@@ -135,11 +137,11 @@ quitRepl _ = liftIO $ exitWith ExitSuccess
 
 opts :: [(String, [String] -> Repl ())]
 opts = [
-    ("load", loadFiles) -- :load <files>
-  , ("quit", quitRepl) -- :quit
+  ("quit", quitRepl) -- :quit
+--  , ("load", loadFiles) -- :load <files>
   ]
 
-
+{-
 ------------------------------------------------------------------------
 -- Parsing
 
@@ -259,6 +261,7 @@ printPretties :: Pretty p => [p] -> Repl ()
 printPretties ps =
   liftIO $ putDoc (vsep $ pretty <$> ps) >> putStr "\n"
 
+-}
 
 {-
 loopRepl :: Repl ()

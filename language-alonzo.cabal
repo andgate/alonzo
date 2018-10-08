@@ -29,20 +29,24 @@ library
     , base
     , binary
     , containers
+    , data-default-class
     , lens
     , ListZipper
     , directory
+    , directory-tree 
     , filepath
     , either
     , exceptions
     , extra
     , hashmap
-    , megaparsec
+    , hashable
     , mtl
     , prettyprinter
     , prettyprinter-ansi-terminal
     , safe
     , semigroups
+    , split
+    , these
     , temporary
     , text
     , unbound-generics
@@ -57,13 +61,17 @@ library
       Language.Alonzo.Analysis.Infer
       Language.Alonzo.Analysis.NameCheck
 
+      Language.Alonzo.Build.Interface
+      Language.Alonzo.Build.Files
+      Language.Alonzo.Build.Types
+
+
       Language.Alonzo.Lex
       Language.Alonzo.Lex.Error
       Language.Alonzo.Lex.Lines
       Language.Alonzo.Lex.Offside
       Language.Alonzo.Lex.State
       Language.Alonzo.Lex.Token
-
       Language.Alonzo.Parse
 
       Language.Alonzo.Syntax.Location

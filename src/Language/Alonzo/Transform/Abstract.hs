@@ -27,7 +27,7 @@ import Unbound.Generics.LocallyNameless
 import Unbound.Generics.LocallyNameless.Internal.Fold (Fold, toListOf)
 
 import Language.Alonzo.Syntax.Location
-import Language.Alonzo.Syntax.Prim
+import Language.Alonzo.Syntax.Builtin
 
 import qualified Data.Map.Strict                as Map
 import qualified Data.List.NonEmpty             as NE
@@ -49,7 +49,7 @@ type Var = Name Term
 
 data Term
   = TVar Var
-  | TVal PrimVal
+  | TVal Val
   | TPrim PrimInstr Term Term
 
   | TApp Term [Term]
@@ -80,7 +80,7 @@ tapps = TApp
 
 
 tlet :: [(String, Term)] -> Term -> Term
-tlet bs b = 
+tlet bs b =
   let bs' = rec [ (string2Name v, embed t) | (v, t) <- bs]
   in TLet $ bind bs' b
 
@@ -110,7 +110,7 @@ instance Alpha PrimInstr where
   aeq' c s1 s2 = True
   acompare' c s1 s2 = EQ
 
-instance Alpha PrimVal where
+instance Alpha Val where
   aeq' c s1 s2 = True
   acompare' c s1 s2 = EQ
 
@@ -119,7 +119,7 @@ instance Subst Term Loc
 instance Subst Term Region
 instance Subst Term Position
 instance Subst Term PrimInstr
-instance Subst Term PrimVal
+instance Subst Term Val
 
 instance Subst Term Term where
   isvar (TVar x) = Just (SubstName x)
@@ -140,15 +140,15 @@ prettyFresh = \case
     t1' <- prettyFresh t1
     t2' <- prettyFresh t2
     return $ pretty i <+> parens t1' <+> parens t2'
-  
+
   TApp f as -> do
-    f' <- prettyFresh f 
+    f' <- prettyFresh f
     as' <- mapM prettyFresh as
     return $ f' <+> hsep as'
 
   TLam bnd -> do
     (xs, body) <- unbind bnd
-    let xs' = (pretty . show) <$> xs 
+    let xs' = (pretty . show) <$> xs
     body' <- prettyFresh body
     return $ "\\" <> hsep xs' <> "." <+> body'
 
@@ -165,12 +165,13 @@ prettyFresh = \case
 ------------------------------------------------------------------------------------------------------
 -- Name Binding
 
+{-
 namebind :: S.Closure -> Closure
 namebind (S.Closure ps ts) = Closure $ bind (rec ps') ts'
   where
     ts' = namebindTerm <$> ts
     ps' = [ (string2Name (unpack n), embed (namebindTerm t))
-          | (S.Program (n, _) t) <- ps 
+          | (S.Program (n, _) t) <- ps
           ]
 
 namebindTerm :: S.Term -> Term
@@ -178,10 +179,10 @@ namebindTerm = \case
   S.TVar (n, _) -> tvar $ unpack n
 
   S.TVal v    -> TVal v
-  
+
   S.TPrim i t1 t2 -> TPrim i (namebindTerm t1) (namebindTerm t2)
 
-  S.TApp f as -> 
+  S.TApp f as ->
     tapps (namebindTerm f) (namebindTerm <$> NE.toList as)
 
   S.TLam vs body ->
@@ -198,7 +199,8 @@ namebindTerm = \case
 
 
 renameFuns :: [((Text, Loc), S.Term)] -> [(String, Term)]
-renameFuns = map renameFun 
+renameFuns = map renameFun
 
 renameFun :: ((Text, Loc), S.Term) -> (String, Term)
 renameFun ((n, _), t) = (unpack n, namebindTerm t)
+-}

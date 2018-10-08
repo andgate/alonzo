@@ -11,7 +11,7 @@ import Data.Text (Text, unpack)
 import Data.Typeable (Typeable)
 import GHC.Generics
 import Language.Alonzo.Syntax.Location
-import Language.Alonzo.Syntax.Prim
+import Language.Alonzo.Syntax.Builtin
 import Unbound.Generics.LocallyNameless
 import Unbound.Generics.LocallyNameless.Internal.Fold (Fold, toListOf)
 
@@ -38,7 +38,7 @@ type Var = Name Term
 
 data Term
   = TVar Var
-  | TVal PrimVal
+  | TVal Val
   | TPrim PrimInstr Term Term
   | TApp Term [Term]
   | TLet (Bind (Rec [(Var, Embed Term)]) Term)

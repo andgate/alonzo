@@ -12,12 +12,12 @@ import Data.Map.Strict (Map)
 import Data.Text (Text, pack, unpack)
 import Data.Text.Prettyprint.Doc
 import Language.Alonzo.Transform.ANF
-import Language.Alonzo.Syntax.Prim
 import Unbound.Generics.LocallyNameless
 import Unbound.Generics.LocallyNameless.Fresh
 import Unbound.Generics.LocallyNameless.Internal.Fold (toListOf)
 
-import qualified Data.Map.Strict as Map
+import qualified Language.Alonzo.Syntax.Builtin as BI
+import qualified Data.Map.Strict                as Map
 
 
 
@@ -63,7 +63,7 @@ reduceTerm cl = \case
   TPrim i a b -> do
     case (a, b) of
       (VVal v1, VVal v2) ->
-           return . VVal $ evalInstr (i, v1, v2)
+           return . VVal $ BI.evalInstr (i, v1, v2)
       (VLoc _ a, b) -> reduceTerm cl $ TPrim i a b
       (a, VLoc _ b) -> reduceTerm cl $ TPrim i a b
       _ -> throwError PrimOpFailure
@@ -80,7 +80,7 @@ reduceTerm cl = \case
             case as of
               [] -> return f'
               _  -> reduceTerm cl $ TApp f' as
-              
+
           x:xs' ->
             let body' = subst x a body
                 f' = VLam $ bind xs' body'

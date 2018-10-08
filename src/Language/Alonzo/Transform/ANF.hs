@@ -12,10 +12,10 @@ import Data.Typeable (Typeable)
 import Data.Text.Prettyprint.Doc
 import GHC.Generics
 import Language.Alonzo.Syntax.Location
-import Language.Alonzo.Syntax.Prim
 import Unbound.Generics.LocallyNameless
 import Unbound.Generics.LocallyNameless.Internal.Fold (Fold, toListOf)
 
+import qualified Language.Alonzo.Syntax.Builtin as BI
 import qualified Language.Alonzo.Transform.Abstract as B
 
 --------------------------------------------------------------------------------------------------
@@ -32,7 +32,7 @@ type Var = Name Val
 
 data Term
   = TVal Val
-  | TPrim PrimInstr Val Val
+  | TPrim BI.PrimInstr Val Val
   | TApp Val [Val]
   | TLet (Bind (Rec [(Var, Embed Term)]) Term)
   | TLoc Loc Term
@@ -41,7 +41,7 @@ data Term
 data Val
   = VVar Var
   | VLam (Bind [Var] Term)
-  | VVal PrimVal
+  | VVal BI.Val
   | VLoc Loc Val
   | VWild
   deriving(Show, Generic, Typeable)
@@ -53,8 +53,8 @@ instance Alpha Val
 instance Subst Val Loc
 instance Subst Val Region
 instance Subst Val Position
-instance Subst Val PrimVal
-instance Subst Val PrimInstr
+instance Subst Val BI.Val
+instance Subst Val BI.PrimInstr
 
 instance Subst Val Term
 instance Subst Val Val where
